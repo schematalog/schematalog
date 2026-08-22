@@ -1,0 +1,267 @@
+/* Syntax highlighting for server-rendered code blocks (the schema detail page).
+   Pygments emits the markup; this file styles it.
+
+   The token rules below are GENERATED - regenerate with `just regen-code-css`
+   (scripts/generate_code_css.py). Light theme only for now: the app pins
+   `data-theme="light"`, so a dark palette would be untestable dead CSS. */
+
+.hl {
+  counter-reset: hl-line;
+  background: transparent;
+}
+
+.hl pre {
+  margin: 0;
+  background: transparent;
+}
+
+/* Line numbers are CSS, not markup, so they stay out of the DOM text - which keeps the
+   copy button (and a manual selection) copying code only. */
+.hl pre > span[id] {
+  counter-increment: hl-line;
+}
+
+.hl pre > span[id]::before {
+  content: counter(hl-line);
+  display: inline-block;
+  width: 2.5em;
+  padding-right: 1em;
+  text-align: right;
+  color: color-mix(in oklch, currentColor 40%, transparent);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Generated token styles */
+.hl .hll {
+  background-color: #ffffcc;
+}
+.hl .c {
+  color: #60a0b0;
+  font-style: italic;
+} /* Comment */
+.hl .err {
+  border: 1px solid #f00;
+} /* Error */
+.hl .k {
+  color: #007020;
+  font-weight: bold;
+} /* Keyword */
+.hl .o {
+  color: #666;
+} /* Operator */
+.hl .ch {
+  color: #60a0b0;
+  font-style: italic;
+} /* Comment.Hashbang */
+.hl .cm {
+  color: #60a0b0;
+  font-style: italic;
+} /* Comment.Multiline */
+.hl .cp {
+  color: #007020;
+} /* Comment.Preproc */
+.hl .cpf {
+  color: #60a0b0;
+  font-style: italic;
+} /* Comment.PreprocFile */
+.hl .c1 {
+  color: #60a0b0;
+  font-style: italic;
+} /* Comment.Single */
+.hl .cs {
+  color: #60a0b0;
+  background-color: #fff0f0;
+} /* Comment.Special */
+.hl .gd {
+  color: #a00000;
+} /* Generic.Deleted */
+.hl .ge {
+  font-style: italic;
+} /* Generic.Emph */
+.hl .ges {
+  font-weight: bold;
+  font-style: italic;
+} /* Generic.EmphStrong */
+.hl .gr {
+  color: #f00;
+} /* Generic.Error */
+.hl .gh {
+  color: #000080;
+  font-weight: bold;
+} /* Generic.Heading */
+.hl .gi {
+  color: #00a000;
+} /* Generic.Inserted */
+.hl .go {
+  color: #888;
+} /* Generic.Output */
+.hl .gp {
+  color: #c65d09;
+  font-weight: bold;
+} /* Generic.Prompt */
+.hl .gs {
+  font-weight: bold;
+} /* Generic.Strong */
+.hl .gu {
+  color: #800080;
+  font-weight: bold;
+} /* Generic.Subheading */
+.hl .gt {
+  color: #04d;
+} /* Generic.Traceback */
+.hl .kc {
+  color: #007020;
+  font-weight: bold;
+} /* Keyword.Constant */
+.hl .kd {
+  color: #007020;
+  font-weight: bold;
+} /* Keyword.Declaration */
+.hl .kn {
+  color: #007020;
+  font-weight: bold;
+} /* Keyword.Namespace */
+.hl .kp {
+  color: #007020;
+} /* Keyword.Pseudo */
+.hl .kr {
+  color: #007020;
+  font-weight: bold;
+} /* Keyword.Reserved */
+.hl .kt {
+  color: #902000;
+} /* Keyword.Type */
+.hl .m {
+  color: #40a070;
+} /* Literal.Number */
+.hl .s {
+  color: #4070a0;
+} /* Literal.String */
+.hl .na {
+  color: #4070a0;
+} /* Name.Attribute */
+.hl .nb {
+  color: #007020;
+} /* Name.Builtin */
+.hl .nc {
+  color: #0e84b5;
+  font-weight: bold;
+} /* Name.Class */
+.hl .no {
+  color: #60add5;
+} /* Name.Constant */
+.hl .nd {
+  color: #555;
+  font-weight: bold;
+} /* Name.Decorator */
+.hl .ni {
+  color: #d55537;
+  font-weight: bold;
+} /* Name.Entity */
+.hl .ne {
+  color: #007020;
+} /* Name.Exception */
+.hl .nf {
+  color: #06287e;
+} /* Name.Function */
+.hl .nl {
+  color: #002070;
+  font-weight: bold;
+} /* Name.Label */
+.hl .nn {
+  color: #0e84b5;
+  font-weight: bold;
+} /* Name.Namespace */
+.hl .nt {
+  color: #062873;
+  font-weight: bold;
+} /* Name.Tag */
+.hl .nv {
+  color: #bb60d5;
+} /* Name.Variable */
+.hl .ow {
+  color: #007020;
+  font-weight: bold;
+} /* Operator.Word */
+.hl .w {
+  color: #bbb;
+} /* Text.Whitespace */
+.hl .mb {
+  color: #40a070;
+} /* Literal.Number.Bin */
+.hl .mf {
+  color: #40a070;
+} /* Literal.Number.Float */
+.hl .mh {
+  color: #40a070;
+} /* Literal.Number.Hex */
+.hl .mi {
+  color: #40a070;
+} /* Literal.Number.Integer */
+.hl .mo {
+  color: #40a070;
+} /* Literal.Number.Oct */
+.hl .sa {
+  color: #4070a0;
+} /* Literal.String.Affix */
+.hl .sb {
+  color: #4070a0;
+} /* Literal.String.Backtick */
+.hl .sc {
+  color: #4070a0;
+} /* Literal.String.Char */
+.hl .dl {
+  color: #4070a0;
+} /* Literal.String.Delimiter */
+.hl .sd {
+  color: #4070a0;
+  font-style: italic;
+} /* Literal.String.Doc */
+.hl .s2 {
+  color: #4070a0;
+} /* Literal.String.Double */
+.hl .se {
+  color: #4070a0;
+  font-weight: bold;
+} /* Literal.String.Escape */
+.hl .sh {
+  color: #4070a0;
+} /* Literal.String.Heredoc */
+.hl .si {
+  color: #70a0d0;
+  font-style: italic;
+} /* Literal.String.Interpol */
+.hl .sx {
+  color: #c65d09;
+} /* Literal.String.Other */
+.hl .sr {
+  color: #235388;
+} /* Literal.String.Regex */
+.hl .s1 {
+  color: #4070a0;
+} /* Literal.String.Single */
+.hl .ss {
+  color: #517918;
+} /* Literal.String.Symbol */
+.hl .bp {
+  color: #007020;
+} /* Name.Builtin.Pseudo */
+.hl .fm {
+  color: #06287e;
+} /* Name.Function.Magic */
+.hl .vc {
+  color: #bb60d5;
+} /* Name.Variable.Class */
+.hl .vg {
+  color: #bb60d5;
+} /* Name.Variable.Global */
+.hl .vi {
+  color: #bb60d5;
+} /* Name.Variable.Instance */
+.hl .vm {
+  color: #bb60d5;
+} /* Name.Variable.Magic */
+.hl .il {
+  color: #40a070;
+} /* Literal.Number.Integer.Long */

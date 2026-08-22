@@ -1,0 +1,37 @@
+{# Tailwind v4 + DaisyUI base. New pages extend this; un-migrated pages still extend
+   the Pico-based `base.html.jinja` until they are ported (see ROADMAP.md). #}
+<!DOCTYPE html>
+<html data-theme="light" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/schematalog-icon.png">
+    {{ vite_asset("src/styles/app.css") }}
+    {% block head_extras %}{% endblock %}
+    <title>{% block site_title %}Schematalog{% endblock %} - {% block page_title %}Home{% endblock %}</title>
+</head>
+<body class="min-h-screen flex flex-col bg-base-100 text-base-content">
+
+    <header class="navbar bg-base-200 border-b border-base-300 px-4 gap-3">
+        <div class="flex-1 flex items-center gap-3">
+            <a href="{{ url_for('homepage') }}" class="flex items-center gap-2">
+                <img width="36" height="36" src="/static/schematalog-icon.png" alt="Schematalog">
+                <span class="text-xl font-semibold">Schematalog</span>
+            </a>
+        </div>
+        <nav class="flex-none flex items-center gap-3 text-sm">
+            <a class="link link-hover" href="{{ url_for('schemas_publish') }}">Publish</a>
+        </nav>
+    </header>
+
+    <main class="flex-1 w-full max-w-5xl mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer footer-center p-4 text-xs opacity-60 border-t border-base-300">
+        <span>version {{ app_version }}{% if version_date %} {{ version_date }}{% endif %}</span>
+    </footer>
+
+    {% block foot_extras %}{% endblock %}
+</body>
+</html>

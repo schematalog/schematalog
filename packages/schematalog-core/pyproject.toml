@@ -1,0 +1,50 @@
+[project]
+name = "schematalog-core"
+dynamic = ["version"]
+description = "The Schematalog domain contract and its conformance suite."
+authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing",
+]
+requires-python = "~=3.14.0"
+# Deliberately small. This is what a storage backend codes against, so anything added
+# here is added to every backend author's environment - which is why the SQLAlchemy
+# column types live with the backend that uses them rather than here.
+dependencies = [
+    "jsonschema>=4.23.0",
+    "pydantic>=2.9.0",
+    "sanitary>=0.2.1",
+    "unclogger>=0.2.2",
+]
+
+[project.optional-dependencies]
+# The conformance suite is importable test code; pytest is needed only by those running it.
+testing = ["pytest>=8.0"]
+
+[tool.deptry]
+known_first_party = ["schematalog"]
+
+[project.urls]
+Homepage = "https://schematalog.com"
+Documentation = "https://schematalog.com"
+Source = "https://github.com/berislavlopac/schematalog"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "schematalog/domain/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["schematalog"]
+# The sample schema is data the published test support reads at runtime, not a fixture
+# left behind in the source tree.
+artifacts = ["schematalog/testing/example_schema.json"]

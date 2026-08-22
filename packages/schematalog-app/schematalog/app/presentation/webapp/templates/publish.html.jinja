@@ -1,0 +1,101 @@
+{% extends "app_base.html.jinja" %}
+
+{% block page_title %}Publish a schema{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold">{% if based_on %}Publish a new version{% else %}Publish a schema{% endif %}</h1>
+        {% if based_on %}
+        <p class="text-sm opacity-60">Based on <code>{{ fields.name }}</code> v{{ based_on }}</p>
+        {% endif %}
+    </div>
+
+    {% if error %}
+    <div role="alert" class="alert alert-error mb-4 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('schemas_publish_submit') }}" class="flex flex-col gap-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Name</legend>
+                <input
+                    type="text"
+                    name="name"
+                    value="{{ fields.name }}"
+                    pattern="[0-9a-zA-Z][0-9a-zA-Z\-_.]*"
+                    title="Letters, digits, '-', '_' and '.'; must start with a letter or digit."
+                    placeholder="customer"
+                    required
+                    autofocus
+                    class="input w-full"
+                >
+                <p class="text-xs opacity-60">
+                    {%- if based_on %}
+                    Identifies the schema, and is permanent. Leave it as it is to add a
+                    version to this schema - <strong>changing it publishes a separate,
+                    brand-new schema instead</strong>, starting its own version history.
+                    {%- else %}
+                    Identifies the schema, and is permanent. Publishing again under this
+                    same name adds a version to it; any other name starts a new schema.
+                    {%- endif %}
+                </p>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Version</legend>
+                <input
+                    type="text"
+                    name="version"
+                    value="{{ fields.version }}"
+                    pattern="[0-9a-zA-Z][0-9a-zA-Z\-_.]*"
+                    title="Letters, digits, '-', '_' and '.'; must start with a letter or digit."
+                    placeholder="1.0"
+                    required
+                    class="input w-full"
+                >
+                <p class="text-xs opacity-60">Immutable once published.</p>
+            </fieldset>
+        </div>
+
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Description <span class="opacity-60">(optional)</span></legend>
+            <input
+                type="text"
+                name="description"
+                value="{{ fields.description }}"
+                maxlength="65536"
+                placeholder="A customer record."
+                class="input w-full"
+            >
+        </fieldset>
+
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Document</legend>
+            <textarea
+                name="json_schema"
+                rows="18"
+                required
+                spellcheck="false"
+                class="textarea w-full font-mono text-sm"
+                data-editor
+            >{{ fields.json_schema }}</textarea>
+            <p class="text-xs opacity-60">
+                JSON Schema. Any <code>$id</code> you include is stripped - Schematalog stamps the
+                canonical one on read.
+            </p>
+        </fieldset>
+
+        <div class="flex flex-wrap items-center gap-3">
+            {# Never disabled server-side: without the island, native validation and the
+               server are what keep a bad submission out. #}
+            <button type="submit" class="btn btn-primary" data-publish-submit>Publish</button>
+            <a class="btn btn-ghost" href="{{ url_for('schemas_list') }}">Cancel</a>
+            <p class="text-xs opacity-60 hidden" data-publish-hint role="status"></p>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block foot_extras %}
+{{ vite_asset("src/islands/editor.ts") }}
+{% endblock %}

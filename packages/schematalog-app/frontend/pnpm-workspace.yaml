@@ -1,0 +1,5 @@
+# Build-script approvals (pnpm blocks dependency install scripts by default as a
+# supply-chain guard). These deps ship native binaries and need their scripts to run.
+allowBuilds:
+  esbuild: true
+  "@tailwindcss/oxide": true

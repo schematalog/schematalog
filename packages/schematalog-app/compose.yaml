@@ -1,0 +1,21 @@
+# Local Postgres for integration tests (`just test-integration`) and dev parity.
+# Pin the major version to match Fly Managed Postgres in production.
+# Pinned so the project name comes from here rather than from the directory this file
+# happens to sit in: moving the file would otherwise orphan running containers and
+# volumes under the old name while a second set started up beside them.
+name: schematalog
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: schematalog
+      POSTGRES_PASSWORD: schematalog
+      POSTGRES_DB: schematalog
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schematalog -d schematalog"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

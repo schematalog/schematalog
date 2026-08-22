@@ -1,0 +1,125 @@
+{% extends "app_base.html.jinja" %}
+{% block page_title %}Schema: {{ schema.name }} v{{ schema.version }}{% endblock %}
+
+{% block foot_extras %}
+{{ vite_asset("src/islands/clipboard.ts") }}
+{% endblock %}
+
+{% block content %}
+
+<p class="mb-4 text-sm opacity-70">
+    <a href="{{ url_for('schemas_list') }}" class="link link-hover">&larr; All schemas</a>
+</p>
+
+{% if schema %}
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-bold break-all"><code>{{ schema.name }}</code></h1>
+        {% if schema.deprecated %}<span class="badge badge-sm badge-warning">deprecated</span>{% endif %}
+    </div>
+
+    <div class="flex items-center gap-2">
+    <a class="btn btn-sm btn-primary"
+       href="{{ url_for('schemas_publish').include_query_params(name=schema.name, version=schema.version) }}">
+        Publish a new version
+    </a>
+
+    {# Version navigation: plain links (works without JS), styled as a dropdown. #}
+    <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-sm btn-outline">version {{ schema.version }} &#9662;</div>
+        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 mt-1 w-40 p-2 shadow">
+            {% for version in all_versions %}
+            <li><a href="?version={{ version }}"{% if version == schema.version %} class="active"{% endif %}>v{{ version }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+    </div>
+</div>
+
+{% if schema.description %}<p class="mb-4 opacity-90">{{ schema.description }}</p>{% endif %}
+
+<dl class="mb-4 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+    <dt class="font-semibold opacity-70">Canonical URL</dt>
+    <dd class="break-all"><a href="{{ canonical_url }}" target="_blank" rel="noopener" class="link link-primary">{{ canonical_url }}</a></dd>
+    <dt class="font-semibold opacity-70">Published</dt>
+    <dd>{{ schema.published_on|datetime }}</dd>
+</dl>
+
+{% if schema.deprecated %}
+<div role="alert" class="alert alert-warning mb-4">
+    <span>This version is deprecated and should not be used for new work.</span>
+</div>
+{% endif %}
+
+{% if schema.successor %}
+<p class="mb-2 text-sm"><span class="font-semibold opacity-70">Superseded by:</span> <a href="{{ schema.successor }}" class="link link-primary break-all">{{ schema.successor }}</a></p>
+{% endif %}
+
+{% if predecessors %}
+<p class="mb-4 text-sm"><span class="font-semibold opacity-70">Supersedes:</span>
+    {% for predecessor in predecessors %}<a href="{{ predecessor.url }}" class="link link-primary">{{ predecessor.name }} v{{ predecessor.version }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
+
+<h2 class="text-lg font-semibold mt-6 mb-2">Properties</h2>
+{% if schema.schema.properties %}
+<div class="overflow-x-auto">
+    <table class="table table-sm table-zebra">
+        <thead>
+            <tr>
+                <th>Parameter</th><th>Description</th><th>Type</th>
+                <th>Required</th><th>Nullable</th><th>Default</th><th>Example</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for name, item in schema.schema.properties | dictsort %}
+            <tr>
+                <td><code>{{ name }}</code></td>
+                <td>{{ item.description }}</td>
+                {# `render_property_type` returns Markup and escapes every schema-derived substring. #}
+                <td>{{ render_property_type(item) }}</td>
+                <td>{% if name in schema.schema.required %}Required{% else %}Optional{% endif %}</td>
+                <td>{% if item.nullable %}Yes{% endif %}</td>
+                <td>{% if "default" in item %}<code>{{ item.default|json }}</code>{% endif %}</td>
+                <td>{% if "example" in item %}<code>{{ item.example|json }}</code>{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="opacity-70">This schema has no properties.</p>
+{% endif %}
+
+<h2 class="text-lg font-semibold mt-6 mb-2">Definition</h2>
+{# CSS-only tabs (radio inputs): the four formats are server-rendered; switching is
+   pure show/hide and works without JavaScript. The clipboard island enhances copying.
+   `format_panel` keeps each tab's markup uniform; the rendered code is passed in since
+   the json/yaml/python/avro filters can't be selected by name from inside the loop. #}
+{% macro format_panel(fmt_id, label, code, checked=False) %}
+<label class="tab">
+    <input type="radio" name="format_tabs"{% if checked %} checked{% endif %} />
+    {{ label }}
+</label>
+<div class="tab-content border-base-300 bg-base-100 p-3">
+    <div class="flex justify-end mb-2">
+        <button type="button" class="btn btn-xs" data-copy="code-{{ fmt_id }}">Copy {{ label }}</button>
+    </div>
+    {# The copy target wraps Pygments' own `<pre>`; `textContent` is the code alone,
+       since the line numbers are drawn by CSS counters rather than emitted as markup. #}
+    <div id="code-{{ fmt_id }}" class="overflow-x-auto rounded bg-base-200 p-3 text-sm">{{ code }}</div>
+</div>
+{% endmacro %}
+<div class="tabs tabs-lift">
+    {{ format_panel("json", "JSON", schema.schema | json | highlight("json", "json"), checked=True) }}
+    {{ format_panel("yaml", "YAML", schema.schema | yaml | highlight("yaml", "yaml")) }}
+    {{ format_panel("pydantic", "Python", schema.schema | python | highlight("python", "pydantic")) }}
+    {{ format_panel("avro", "Avro", schema.schema | avro | highlight("json", "avro")) }}
+</div>
+
+{% else %}
+<h1 class="text-2xl font-bold">Unknown schema</h1>
+{% endif %}
+
+{% endblock %}

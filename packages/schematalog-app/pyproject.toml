@@ -1,0 +1,96 @@
+[project]
+name = "schematalog-app"
+dynamic = ["version"]
+description = "A registry and catalog for JSON Schema specifications: JSON API and web UI."
+authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: FastAPI",
+]
+requires-python = "~=3.14.0"
+dependencies = [
+    # Both drivers ship: SQLite is the default backend, so an install without aiosqlite
+    # fails on the first query with nothing configured - which is the path the
+    # two-minute evaluation takes.
+    "aiosqlite>=0.20.0",
+    "asyncpg>=0.31.0",
+    "datamodel-code-generator>=0.30.1",
+    "fastapi>=0.122.0",
+    "jinja2>=3.1.4",
+    "markupsafe>=2.1.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.12.0",
+    "pygments>=2.20.0",
+    "python-multipart>=0.0.20",
+    "pyyaml>=6.0.1",
+    "schematalog-core",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+# So an install is followed by a command rather than a uvicorn invocation.
+[project.scripts]
+schematalog = "schematalog.app.cli:main"
+
+[project.urls]
+Homepage = "https://schematalog.com"
+Documentation = "https://schematalog.com"
+Source = "https://github.com/berislavlopac/schematalog"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "schematalog/app/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["schematalog"]
+# The web UI is served from assets Vite builds into the package, and a wheel without
+# them renders an unstyled page. They have to be force-included: the root .gitignore
+# has a bare `dist/`, which gitignore semantics match at any depth - including
+# `static/dist/` - and hatchling honours it when selecting files. `artifacts` patterns
+# do not override that; force-include copies the path in regardless.
+[tool.hatch.build.targets.sdist]
+# An sdist should carry what is needed to build and check the package: sources, the
+# manifest, the tests, and the frontend the assets are built from. Not how *we* happen to
+# run it. `fly.toml` in particular names a provider and an app that are ours - shipping it
+# advertises a vendor to everyone who downloads a tarball, and configures nothing they own.
+# (A stray .gitignore also lands in the sdist; hatchling includes it regardless of this
+# list, and it is harmless enough not to fight.)
+exclude = [
+    "fly.toml",
+    "compose.yaml",
+    "Dockerfile",
+]
+
+[tool.hatch.build.targets.sdist.force-include]
+"schematalog/app/presentation/webapp/static/dist" = "schematalog/app/presentation/webapp/static/dist"
+
+[tool.uv.sources]
+schematalog-core = { workspace = true }
+
+[tool.deptry]
+# `schematalog` is our own namespace, shared across these distributions; deptry cannot
+# tell which one provides a given submodule, so it is declared first-party here.
+known_first_party = ["schematalog"]
+
+[tool.deptry.per_rule_ignores]
+# Imported by the template engine and the ASGI stack rather than by our code, or loaded
+# from a URL string (asyncpg) rather than imported at all.
+DEP002 = [
+    "jinja2",
+    "python-multipart",
+    "asyncpg",
+    "aiosqlite",
+    # Declaring the namespace first-party is what lets deptry cope with several
+    # distributions sharing `schematalog.*`; the cost is that it can no longer see which
+    # distribution provides the modules being imported, so this looks unused.
+    "schematalog-core",
+]

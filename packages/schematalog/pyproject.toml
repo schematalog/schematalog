@@ -1,0 +1,44 @@
+[project]
+name = "schematalog"
+version = "0.1.0"
+description = "A registry and catalog for JSON Schema specifications."
+readme = "README.md"
+authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]
+license = "MIT"
+requires-python = "~=3.14.0"
+keywords = ["json-schema", "schema-registry", "catalog"]
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+# The registry itself, so `pip install schematalog` does what someone typing that name
+# means. This distribution ships no modules of its own - see README.md for why it exists
+# at all.
+dependencies = [
+    "schematalog-app",
+]
+
+[project.urls]
+Homepage = "https://schematalog.com"
+Documentation = "https://schematalog.com"
+Source = "https://github.com/berislavlopac/schematalog"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# No modules: the wheel is metadata and a dependency. Without this hatchling looks for a
+# package named after the distribution and fails, which is the right failure to preempt
+# rather than to hit.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
+
+[tool.deptry.per_rule_ignores]
+# A meta-package declares a dependency and imports nothing; that is the whole of it.
+DEP002 = ["schematalog-app"]
+
+[tool.uv.sources]
+schematalog-app = { workspace = true }

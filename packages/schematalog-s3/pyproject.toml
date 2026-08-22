@@ -1,0 +1,63 @@
+[project]
+name = "schematalog-s3"
+dynamic = ["version"]
+description = "S3 storage backend for Schematalog."
+authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = "~=3.14.0"
+# Only the contract, never the application: implementing five methods should not oblige
+# anyone to install FastAPI, uvicorn and a template engine.
+dependencies = [
+    "boto3>=1.35",
+    "botocore>=1.35",
+    "schematalog-core",
+]
+
+# This is the whole of registration: an installed package declares the scheme it answers
+# to, and Schematalog finds it. Nothing in the registry knows this package exists.
+[project.entry-points."schematalog.storage"]
+s3 = "schematalog.s3:build_repository"
+
+# Its own tests need their own declarations - a package that cannot say what it takes to
+# test it is not self-contained. `schematalog-core[testing]` brings the conformance suite.
+[dependency-groups]
+tests = [
+    "moto>=5.2.3",
+    "pytest>=8.0",
+    "schematalog-core[testing]",
+]
+
+[tool.deptry]
+known_first_party = ["schematalog"]
+
+[tool.deptry.per_rule_ignores]
+# Declaring the namespace first-party (above) is what lets deptry cope with several
+# distributions sharing `schematalog.*`; the cost is that it can no longer see which
+# distribution provides the modules being imported, so the dependency looks unused.
+DEP002 = ["schematalog-core"]
+
+[project.urls]
+Homepage = "https://schematalog.com"
+Documentation = "https://schematalog.com"
+Source = "https://github.com/berislavlopac/schematalog"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "schematalog/s3/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["schematalog"]
+
+[tool.uv.sources]
+schematalog-core = { workspace = true }

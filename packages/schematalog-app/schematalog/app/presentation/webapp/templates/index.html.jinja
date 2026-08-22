@@ -1,0 +1,39 @@
+{% extends "app_base.html.jinja" %}
+
+{% block page_title %}Schematalog{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-2xl font-bold">Schematalog</h1>
+    <p class="text-sm opacity-60">A registry for JSON Schema specifications.</p>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2">
+    <a href="{{ url_for('schemas_list') }}"
+       class="card bg-base-100 border border-base-300 shadow-sm transition-colors hover:border-primary">
+        <div class="card-body gap-2 p-4">
+            <h2 class="card-title text-base">Schemas</h2>
+            <p class="text-sm opacity-70">Browse the schema catalog.</p>
+        </div>
+    </a>
+    <a href="{{ url_for('swagger_ui_html') }}" target="_blank" rel="noopener"
+       class="card bg-base-100 border border-base-300 shadow-sm transition-colors hover:border-primary">
+        <div class="card-body gap-2 p-4">
+            <h2 class="card-title text-base">API documentation</h2>
+            <p class="text-sm opacity-70">Interactive OpenAPI reference for the JSON API.</p>
+        </div>
+    </a>
+</div>
+
+<div class="mt-8">
+    <h2 class="mb-2 text-sm font-semibold opacity-70">API base URL</h2>
+    <div class="flex items-center gap-2">
+        <code id="api-base-url" class="rounded bg-base-200 px-3 py-2 text-sm">{{ request.base_url }}api</code>
+        <button type="button" class="btn btn-xs" data-copy="api-base-url">Copy</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block foot_extras %}
+{{ vite_asset("src/islands/clipboard.ts") }}
+{% endblock %}

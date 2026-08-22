@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push supersedes an in-flight run for the same ref; `main` is exempt so its
+  # history keeps a result for every commit.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  checks:
+    name: Checks and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: packages/schematalog-app/frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: packages/schematalog-app/frontend/pnpm-lock.yaml
+
+      - run: uv sync --all-groups --locked
+      - run: just install-fe
+      # Lint, dependency, safety and type checks across Python and the frontend, then
+      # every package's unit tests with the coverage floor.
+      - run: just ready
+
+  integration:
+    name: Integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: schematalog
+          POSTGRES_PASSWORD: schematalog
+          POSTGRES_DB: schematalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U schematalog -d schematalog"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups --locked
+      # Not `just test-integration`, which would start its own compose stack; the service
+      # container above already provides one at the address the tests default to.
+      - run: uv run pytest packages/schematalog-app/tests/integration --spec
+
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: extractions/setup-just@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: packages/schematalog-app/frontend/.nvmrc
+          cache: pnpm
+          cache-dependency-path: packages/schematalog-app/frontend/pnpm-lock.yaml
+
+      - run: just install-fe
+      # Builds the frontend first: the application's sdist force-includes the built
+      # assets, so a wheel cannot be produced without them - which is the point.
+      - run: just build
+      - run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/

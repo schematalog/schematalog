@@ -1,0 +1,66 @@
+{
+  "title": "Person",
+  "description": "Details about a person.",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "type": "string"
+    },
+    "lastName": {
+      "type": "string"
+    },
+    "birthday": {
+      "description": "Date of birth.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "age": {
+      "description": "Age in years",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 130
+    },
+    "dogs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 4
+    },
+    "address": {
+      "type": "object",
+      "title": "Address",
+      "properties": {
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "postcode": { "type": "string" }
+      },
+      "required": ["street", "city"]
+    },
+    "gender": {
+      "type": "string",
+      "enum": ["male", "female", "other"],
+      "default": "male"
+    },
+    "deceased": {
+      "type": "boolean"
+    },
+    "shoe_preferences": {
+      "type": "object",
+      "title": "ShoePreferences",
+      "properties": {
+        "size": {
+          "type": "number"
+        },
+        "size_type": {
+          "type": "string",
+          "enum": ["UK", "EU", "US"],
+          "default": "UK"
+        },
+        "style": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["firstName", "lastName"]
+}

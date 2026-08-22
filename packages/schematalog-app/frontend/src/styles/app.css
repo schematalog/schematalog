@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@import "./code.css";
+@plugin "daisyui" {
+  themes:
+    light --default,
+    dark --prefersdark;
+}
+
+/* Tailwind v4 auto-detects source files, but the Jinja templates live outside the
+   frontend root, so point the scanner at them explicitly. Relative to this file
+   (frontend/src/styles/) up to the repo root, then into the app's templates. */
+/* Every template in the package, wherever it sits. A path naming intermediate
+   directories broke silently when the package was restructured: Tailwind found no
+   templates, emitted no utility classes, and the pages rendered unstyled while the
+   build reported success. */
+@source "../../../schematalog/**/*.jinja";

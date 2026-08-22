@@ -1,0 +1,16 @@
+# Keep the build context lean. The frontend stage installs deps and builds assets
+# fresh, so the local node_modules / dist must not be copied in.
+.git
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+# Path-independent, so moving a package cannot silently reintroduce them: the host's
+# node_modules being copied in makes pnpm refuse to run, and stale built assets
+# would shadow the ones the frontend stage produces.
+**/node_modules
+**/static/dist
+db.sqlite3
+storage_
+reports

@@ -1,0 +1,72 @@
+site_name: Schematalog
+site_description: A registry/catalog for JSON Schema specifications.
+site_author: Berislav Lopac <berislav@lopac.net>
+repo_url: https://github.com/berislavlopac/schematalog
+site_url: https://schematalog.com
+use_directory_urls: false
+
+validation:
+  omitted_files: warn
+  absolute_links: relative_to_docs
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: materialx
+  icon:
+    logo: material/database-search
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+  palette:
+    # Automatic mode: follow the system colour scheme
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guides:
+    - guides/storage.md
+    - guides/publishing.md
+    - guides/retrieving.md
+    - guides/lifecycle.md
+    - guides/formats.md
+  - Reference:
+    - reference/api.md
+    - reference/configuration.md
