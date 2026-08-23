@@ -27,6 +27,71 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-23: Tags name the distribution; the meta-package has no tag of its own
+
+**Decided.** A release tag is `<distribution-name>/v<version>` -
+`schematalog-core/v0.1.0`, `schematalog-app/v0.1.0`, `schematalog-s3/v0.1.0` - with a
+GitHub release per tag. The application's release is marked *Latest*, because that is
+what the repository sidebar links to and the registry is what a visitor arrived for.
+
+**Why the full distribution name** rather than a short `core/` or `app/`. The tag then
+matches the PyPI name exactly, so nothing has to be mentally mapped and a check can
+compare the tag against that package's `name` and version constant mechanically. A short
+prefix reads better and invents a second vocabulary for the same three things.
+
+**Consequences worth knowing**, all of them mild and all of them permanent:
+
+- `git describe --tags` becomes meaningless across mixed prefixes; it needs
+  `--match 'schematalog-app/v*'`. Relevant if `buildinfo.py` ever grows a `git describe`.
+- Auto-generated release notes compare against whatever tag GitHub considers previous,
+  which across interleaved prefixes is usually another package's. `--notes-start-tag`
+  fixes it, and has to be passed every time.
+- The releases page interleaves all packages in one chronological list. Nobody has solved
+  that well; at three packages it does not matter.
+
+The upside is what makes it worth the cost: a publishing workflow can key on
+`tags: ['schematalog-app/v*']` and release exactly one package, which is the whole point
+of versioning them independently.
+
+**Resolves** the "still open: how to tag" note left by the 2026-08-22 versioning entry.
+
+---
+
+## 2026-08-23: The meta-package's version always equals the application's
+
+**Decided.** `schematalog` - the meta-package that ships no modules - carries the same
+version as `schematalog-app`, always, and is republished on every application release
+even when nothing about it has changed. It gets no tag and no release of its own; the
+application's covers both. Its dependency on `schematalog-app` stays **unpinned**.
+
+**Why lockstep.** The alternative was to let it version on its own changes, which are
+rare - its metadata and nothing else. That is defensible until the numbers separate, and
+then `schematalog 0.1.0` installs `schematalog-app 0.4.0` and the number on the front
+door means nothing. A version is only worth printing if a reader can act on it. The cost
+is republishing an unchanged three-file package occasionally, which is nothing.
+
+**Why the dependency stays unpinned**, even though lockstep invites `==` and the
+no-upper-bound rule explicitly exempts packages released in step by one maintainer. The
+failure modes are not symmetric. Pinned, forgetting to republish the meta means everyone
+typing `pip install schematalog` silently receives the previous application release - a
+stale install, no error, nothing to notice. Unpinned, the same slip leaves the meta's
+number a release behind while users still get the current application: visible to us,
+harmless to them. The pin buys a stricter promise about a number and pays for it in the
+one currency that matters.
+
+**Why the equality check is a publish gate, not part of `just check`.** Both numbers only
+ever change at release time, so a gate fires exactly when drift can occur and cannot be
+skipped the way a local run can. Running it on every check would mostly re-compare two
+numbers nobody had touched. It lands with the publishing workflow; until that exists,
+this entry is the only thing holding the rule.
+
+**Rejected: deriving the meta's version from the application's file** via
+`[tool.hatch.version]`. The path climbs out of the meta-package's own directory, so it
+resolves inside the workspace and breaks when the sdist is built in isolation - passing
+locally and failing in CI is the worst available outcome.
+
+---
+
 ## 2026-08-22: Versions restart at 0.1.0, and the app's minor tracks the phase
 
 **Decided.** Every package starts at **0.1.0** and versions independently. For
