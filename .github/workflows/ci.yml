@@ -23,6 +23,11 @@ jobs:
           enable-cache: true
       - uses: extractions/setup-just@v2
       - uses: pnpm/action-setup@v4
+        with:
+          # The version comes from the frontend manifest's `packageManager` field; the
+          # action's default looks for a package.json at the repository root, which this
+          # workspace does not have.
+          package_json_file: packages/schematalog-app/frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version-file: packages/schematalog-app/frontend/.nvmrc
@@ -69,6 +74,11 @@ jobs:
           enable-cache: true
       - uses: extractions/setup-just@v2
       - uses: pnpm/action-setup@v4
+        with:
+          # The version comes from the frontend manifest's `packageManager` field; the
+          # action's default looks for a package.json at the repository root, which this
+          # workspace does not have.
+          package_json_file: packages/schematalog-app/frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version-file: packages/schematalog-app/frontend/.nvmrc
