@@ -107,6 +107,29 @@ def clear_context(*keys: str) -> None:
     unclogger.context_clear(*keys)
 
 
+def redact(text: str) -> str:
+    """Mask credential-shaped substrings in text that is printed rather than logged.
+
+    The sanitizer processor covers everything emitted through a logger, but the CLI
+    writes to stdout and an HTTP handler writes to a response body, and neither passes
+    through it. This applies the same value patterns so the definition of "looks like a
+    credential" stays in one place.
+
+    Substitutes each match in place rather than discarding the whole string, because the
+    text around the credential is usually the diagnosis - a storage URL appears in a
+    driver's connection error precisely when an operator most needs to read it.
+
+    Args:
+        text: The string about to be shown to someone.
+
+    Returns:
+        The string with every credential-shaped match replaced.
+    """
+    for pattern in _FORBIDDEN_VALUE_PATTERNS:
+        text = pattern.sub(REDACTED, text)
+    return text
+
+
 _configured = False
 
 
