@@ -27,6 +27,71 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-25: The CLI becomes an extension point; where it lives stays open
+
+**Open, with a leaning.** `schematalog` is today a two-command argparse CLI (`serve`,
+`info`) shipped by `schematalog-app` as a console script. The expectation is that it
+grows into the entry point for the other tools too - the SDK first - which turns it from
+an application detail into an extension point. The leaning is that the dispatcher ends up
+in `schematalog-core`. Nothing is decided here, and nothing needs to be until there is a
+second consumer.
+
+**First, a correction to the obvious framing.** "Move it to the root `schematalog`
+package" describes something that does not exist: the meta-package ships no modules at
+all (`bypass-selection = true` - the wheel is metadata and one dependency), and the
+namespace level deliberately has no `__init__.py`. The candidates are core, a new
+distribution, or giving the meta-package a body.
+
+**The constraint that decides the shape** is not layout, it is the command name. More
+than one distribution may declare `[project.scripts] schematalog = ...`, and whichever
+installs last silently overwrites the shim. So the name needs exactly one owner, and
+everything else registers into it.
+
+**The mechanism is already in the house.** A `schematalog.commands` entry-point group,
+name to subcommand, is the direct analogue of `schematalog.storage`. Both of that seam's
+safety rules carry over unchanged: a plugin may not shadow a built-in command, and a
+plugin that fails to load is logged and skipped, so one broken package cannot stop
+`serve` from working. The underscore trap does *not* carry over - that was RFC 3986 on
+URL schemes, and a command name is under no such restriction.
+
+**The three homes, and the objection to each:**
+
+- **`schematalog-core`.** The dispatcher is argparse, so stdlib, so it costs core's
+  deliberately small footprint nothing. The objection: a backend author who installs only
+  core to implement five methods gets a `schematalog` command with nothing in it. That is
+  answerable - with no commands registered it can say so, which is honest rather than
+  broken - and it is the reason for the leaning rather than a decision.
+- **The meta-package.** Giving it a body changes what it is, and anyone installing
+  `schematalog-app` alone would *lose* the command. A regression on today.
+- **A new `schematalog-cli`.** Cleanest ownership, and a whole distribution whose entire
+  content is an argparse loop.
+
+Under any of them the application keeps `serve`: it owns the uvicorn dependency, and that
+must not leak downward into core.
+
+**Why not now.** There is exactly one consumer. A seam designed against a single example
+is precisely the mistake the implementer's guide exists to document - every seam built so
+far has had something wrong with it that only appeared on contact. Waiting until the SDK
+is real means one move informed by two consumers instead of two moves. The move is also a
+public-surface change twice over: `schematalog.app.cli:main` is a declared console-script
+target, and the command name changes owning distribution.
+
+**Two questions to settle at the move, not before:**
+
+- **Lazy dispatch.** If the parser is built by importing every registered command, then
+  `schematalog info` pays the SDK's import cost and the application's uvicorn import.
+  Register a loader per command and import only the one invoked. Cheap to design in,
+  expensive to retrofit once third parties have registered against it.
+- **What `--version` reports.** It is the application's today, whose minor tracks the
+  roadmap phase. With several distributions in play a single number misleads; the natural
+  answer is what `info` already does and reports each installed component. So the move is
+  an `info` change too.
+
+**Free thing that preserves the option**: shape the storage connectivity check as a
+subcommand rather than more flags piled onto `info`, so the eventual split is mechanical.
+
+---
+
 ## 2026-08-23: Tags name the distribution; the meta-package has no tag of its own
 
 **Decided.** A release tag is `<distribution-name>/v<version>` -
