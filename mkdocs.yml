@@ -63,6 +63,7 @@ nav:
   - Getting started: getting-started.md
   - Guides:
     - guides/storage.md
+    - guides/writing-a-backend.md
     - guides/publishing.md
     - guides/retrieving.md
     - guides/lifecycle.md

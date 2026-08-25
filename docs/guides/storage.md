@@ -121,7 +121,8 @@ which version counts as "latest", so you inherit that rather than reimplementing
 subclass it, supply one fixture, and it tells you whether your backend is correct.
 Registration is an entry point, so nothing in this repository needs changing.
 
-A guide to writing one is coming. Until then there are two worked examples: the
-filesystem backend inside the registry, which is small enough to read in a sitting, and
-`schematalog-s3`, which is a real backend living entirely outside it - the same shape
-yours would take.
+[Writing a storage backend](writing-a-backend.md) is the guide to doing it, including
+the parts that turned out to be awkward. There are also three worked examples to read:
+the filesystem backend inside the registry, which is small enough to take in at a
+sitting; `schematalog-s3`, a real backend living entirely outside it - the same shape
+yours would take; and a probe backend that implements the five methods and nothing else.
