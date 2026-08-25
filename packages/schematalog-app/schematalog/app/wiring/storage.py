@@ -267,3 +267,35 @@ def storage_summary(url: str) -> dict[str, Any]:
     except UnknownStorageSchemeError:
         return {"scheme": scheme, "known": False}
     return {"scheme": scheme, "known": True}
+
+
+async def check_storage(repository: SchemaRepository) -> None:
+    """Prove the store is reachable, using nothing but the repository contract.
+
+    Resolving a URL only proves that some backend answers to its scheme. A wrong host, a
+    wrong password or an unwritable directory all build a repository quite happily,
+    because every backend connects lazily - so a misconfigured instance starts clean and
+    the operator learns the truth from a 500 on the first request. This does the read
+    that settles it.
+
+    `list_names` is the probe because it is one of the five required methods, so every
+    backend has one, and because at most one name is pulled: an empty store is a healthy
+    answer and a large one is not walked. On the SQL backends this is also a first use of
+    the store, so it covers the lazy `create_all` as well as the connection itself.
+
+    Whatever the backend raises when it cannot be reached propagates unchanged; the
+    caller decides how much of it is safe to show.
+
+    Args:
+        repository: The store to probe.
+    """
+    names = aiter(repository.list_names())
+    try:
+        await anext(names, None)
+    finally:
+        # Declared as an `AsyncIterable`, so a backend may hand back a plain iterator
+        # with nothing to close; the built-in ones are generators, and abandoning one
+        # mid-yield leaves its cursor open until the collector gets to it.
+        aclose = getattr(names, "aclose", None)
+        if aclose is not None:
+            await aclose()

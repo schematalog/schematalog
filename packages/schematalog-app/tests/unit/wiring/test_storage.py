@@ -15,6 +15,7 @@ from schematalog.app.wiring.storage import (
     UnknownStorageSchemeError,
     _split_options,
     build_schema_repository,
+    check_storage,
     storage_summary,
 )
 
@@ -203,3 +204,39 @@ async def test_a_five_method_backend_gets_the_latest_rule_for_free():
         MetadataUpdateCommand(name="probe", version="1.0", deprecated=True)
     )
     assert (await service.get_schema(GetSchemaCommand(name="probe"))).version == "10.0"
+
+
+async def test_check_storage_accepts_an_empty_store(schema_repo):
+    """Empty is a healthy answer; the probe asks whether the store answers, not what it holds."""
+    await check_storage(schema_repo)
+
+
+async def test_check_storage_pulls_at_most_one_name():
+    """A registry with thousands of schemas must not be walked to answer a health check."""
+    produced = []
+
+    class BigStore:
+        async def list_names(self):
+            for name in ("first", "second", "third"):
+                produced.append(name)
+                yield name
+
+    await check_storage(BigStore())
+    assert produced == ["first"]
+
+
+async def test_check_storage_propagates_what_the_backend_raises():
+    """The caller decides how much of the failure is safe to show, so nothing is swallowed."""
+
+    class BrokenStore:
+        def list_names(self):
+            return self
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise OSError("connection refused")  # noqa: TRY003
+
+    with pytest.raises(OSError, match="connection refused"):
+        await check_storage(BrokenStore())

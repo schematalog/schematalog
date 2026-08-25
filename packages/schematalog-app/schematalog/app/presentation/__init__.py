@@ -21,10 +21,17 @@ from schematalog.app.application.exceptions import (
 from schematalog.app.presentation import api, webapp
 from schematalog.app.presentation.helpers import buildinfo
 from schematalog.app.wiring.config import settings
-from schematalog.app.wiring.storage import build_schema_repository
-from schematalog.common.logging import bind_context, clear_context, configure_logging
+from schematalog.app.wiring.storage import build_schema_repository, check_storage
+from schematalog.common.logging import (
+    bind_context,
+    clear_context,
+    configure_logging,
+    get_logger,
+)
 
 STATIC_DIR = Path(__file__).parent / "webapp" / "static"
+
+log = get_logger(__name__)
 
 configure_logging(debug=settings.DEBUG)
 
@@ -103,3 +110,29 @@ def version() -> dict[str, str]:
         "environment": settings.ENVIRONMENT,
         "platform": settings.PLATFORM,
     }
+
+
+@app.get("/health", include_in_schema=False)
+async def health() -> Response:
+    """Whether this instance can reach its store: a real read, not a liveness ping.
+
+    An instance whose store is unreachable starts and serves pages perfectly well, so
+    "the process is up" answers the wrong question. This one does the read.
+
+    The status code carries the answer - 503 rather than 200 with a field to inspect -
+    because a load balancer, a container health check and an uptime monitor can all act
+    on a code and none of them will parse a body.
+
+    That body deliberately holds no detail. The endpoint is public and unauthenticated,
+    and a driver's connection error names hosts, ports and user names; the detail goes
+    to the log, which is redacted and which only the operator can read.
+    """
+    try:
+        await check_storage(app.state.schemas)
+    except Exception:
+        log.exception("health check failed: storage unreachable")
+        return JSONResponse(
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+            content={"status": "unavailable", "storage": "unreachable"},
+        )
+    return JSONResponse(content={"status": "ok", "storage": "ok"})
