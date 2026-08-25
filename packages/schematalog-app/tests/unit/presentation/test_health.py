@@ -22,7 +22,7 @@ class UnreachableStore:
         return self
 
     async def __anext__(self):
-        raise OSError("could not connect to postgresql://user:hunter2@host/db")  # noqa: TRY003
+        raise OSError("could not connect to postgresql://user:hunter2@host/db")
 
 
 def test_health_reports_ok_when_the_store_answers(monkeypatch):

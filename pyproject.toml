@@ -140,7 +140,8 @@ external = [
     "S105",     # allow harcoded passwords
     "N802",     # allow variable case in test names
     "PLR2004",  # allow magic values in comparisons
-    "S311"      # allow random generator
+    "S311",     # allow random generator
+    "TRY003",   # a test double raises a realistic message; that is the point of it
 ]
 "packages/schematalog-core/schematalog/common/avroform/*" = [
     "TRY003",   # contextual messages on conversion errors are intentional

@@ -236,7 +236,7 @@ async def test_check_storage_propagates_what_the_backend_raises():
             return self
 
         async def __anext__(self):
-            raise OSError("connection refused")  # noqa: TRY003
+            raise OSError("connection refused")
 
     with pytest.raises(OSError, match="connection refused"):
         await check_storage(BrokenStore())
