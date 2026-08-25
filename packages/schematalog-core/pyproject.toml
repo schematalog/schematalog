@@ -26,10 +26,18 @@ dependencies = [
 
 [project.optional-dependencies]
 # The conformance suite is importable test code; pytest is needed only by those running it.
-testing = ["pytest>=8.0"]
+# Every case in the suite is `async def`, so the asyncio plugin is not optional on top of
+# that - without it a backend author gets 27 errors where the contract should be.
+testing = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 
 [tool.deptry]
 known_first_party = ["schematalog"]
+
+[tool.deptry.per_rule_ignores]
+# A pytest plugin is reached through configuration, never through an import, so nothing
+# in the source can show deptry that it is used. It is still required: the conformance
+# suite is entirely `async def`.
+DEP002 = ["pytest-asyncio"]
 
 [project.urls]
 Homepage = "https://schematalog.com"

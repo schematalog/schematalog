@@ -16,6 +16,11 @@ How the repository is emptied is the author's business - a temporary directory, 
 database, a truncate. The contract deliberately carries no reset operation, because the
 running application never needs one.
 
+Every case here is `async def`, so the suite needs pytest-asyncio in automatic mode
+(`asyncio_mode = "auto"`); under its default strict mode every case errors out on the
+fixture instead of running. The plugin ships with the `testing` extra, but the mode is
+the author's own configuration and cannot be set from here.
+
 These cases test a *repository*, not the service above it: they are the behaviour a
 backend owes, and nothing about validation, HTTP or command handling. Three of the eight
 methods are derived by `SchemaRepository` itself, so a backend that overrides them for
