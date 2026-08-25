@@ -10,6 +10,11 @@ SCHEMATALOG_STORAGE_URL=file:///data/schemas
 With nothing set at all it runs on SQLite in the working directory, which needs no
 external service.
 
+After changing any of this, `schematalog check` opens the configured store and reports
+whether it answered. Worth the habit: a backend connects lazily, so a setting that is
+wrong in a way the application cannot see at start-up surfaces as a failed request
+rather than a failed launch.
+
 ## Top-level settings
 
 | Variable | Default | Description |

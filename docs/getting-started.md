@@ -13,6 +13,30 @@ serves the JSON API and the web UI on <http://127.0.0.1:8000>.
 
 `schematalog info` reports the version and which storage backend the configuration
 resolved to, which is the quickest way to check an instance is set up the way you think.
+It stops short of the store itself, and it never prints the storage URL - that routinely
+carries a password, and `info` output is exactly what gets pasted into an issue.
+
+`schematalog check` goes the rest of the way and opens the store. This matters more than
+it sounds: every backend connects lazily, so a wrong host, a wrong password or an
+unwritable directory all start perfectly well and fail on the first request instead.
+
+```shell
+$ schematalog check
+schematalog 0.1.0
+storage scheme: sqlite (recognised)
+store:          reachable
+```
+
+It exits non-zero when the store is not usable, so a deploy script can gate on it, and
+it separates the three ways that happens - an unrecognised scheme, options that do not
+validate, and a store that will not answer - because each has a different fix.
+
+The same question over HTTP is **`GET /health`**: `200` when the store answered, `503`
+when it did not, so a load balancer, a container health check or an uptime monitor can
+act on the status code alone. The body carries no detail - the endpoint is public, and a
+driver's connection error names hosts and user names - so the reason goes to the log,
+where only the operator can read it.
+
 When you outgrow the default, [Choosing a storage backend](guides/storage.md) covers
 what to move to and why.
 
