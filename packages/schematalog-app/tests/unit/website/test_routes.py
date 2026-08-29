@@ -159,3 +159,17 @@ def test_the_page_does_not_pin_a_colour_theme(client):
     html = client.get("/").text
     assert 'data-theme="light"' not in html[: html.index("<head>")]
     assert "schematalog-theme" in html[: html.index("</head>")], "no pre-paint resolution"
+
+
+def test_the_spec_describes_the_json_api_and_nothing_else(client):
+    """The HTML pages are not part of the API contract, so they are not in the contract.
+
+    They returned documents rather than data, promised nothing about their shape, and
+    arrived in the generated reference as an untagged "default" group.
+    """
+    spec = client.get("/openapi.json").json()
+    assert [tag["name"] for tag in spec["tags"]] == ["Schemas"]
+    assert all(path.startswith("/api/") for path in spec["paths"]), spec["paths"].keys()
+    for operations in spec["paths"].values():
+        for operation in operations.values():
+            assert operation["tags"] == ["Schemas"]

@@ -29,7 +29,10 @@ from schematalog.app.presentation.helpers.urls import (
 )
 from schematalog.app.wiring.factories import get_service
 
-router = APIRouter(prefix="/api", tags=["json-schema"])
+# Tagged for the reader of the generated reference, who sees the tag as the section
+# heading over these operations. "Schemas" names the resource they act on; the old
+# "json-schema" named the format of one field of it, which grouped nothing.
+router = APIRouter(prefix="/api", tags=["Schemas"])
 
 
 def _to_response(view: SchemaView, request: Request) -> SchemaResponse:

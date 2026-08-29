@@ -25,7 +25,13 @@ from schematalog.app.wiring.factories import get_service
 
 from .templates import templates
 
-router = APIRouter()
+# Out of the OpenAPI specification entirely. The spec is the JSON API's contract, and
+# these routes are none of it: they return HTML, they take form posts, and the pages
+# themselves are free to change without anything having been promised about them. Left
+# in, they showed up as an untagged "default" group of endpoints whose "Try it out"
+# button returns a document rather than data, and any generated client grew methods for
+# them. `/version` and `/health` are already excluded for the same reason.
+router = APIRouter(include_in_schema=False)
 
 
 def _template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any], str]:

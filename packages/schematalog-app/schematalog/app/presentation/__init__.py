@@ -40,6 +40,16 @@ app = FastAPI(
     description="API for cataloguing JSON Schema specifications.",
     version=buildinfo.app_version(),
     debug=settings.DEBUG,
+    openapi_tags=[
+        {
+            "name": "Schemas",
+            "description": (
+                "Publishing and retrieving versioned JSON Schema documents. A schema is "
+                "identified by its name and version; every published version is "
+                "immutable, apart from its deprecation metadata."
+            ),
+        }
+    ],
 )
 # Fly terminates TLS at the edge and forwards over plain HTTP, so honour the
 # `X-Forwarded-Proto`/`-For` headers it sets - otherwise the canonical `$id`
