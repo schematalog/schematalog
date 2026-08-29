@@ -190,13 +190,9 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         )
         normalised = normalise_query(query)
         if normalised is not None:
-            # The same guarantee as the base class, pushed into the store: a
-            # case-insensitive substring of the name. `lower()` rather than `ILIKE`
-            # because the latter is PostgreSQL-only and both backends have to answer
-            # identically. That equivalence holds because `NAME_PATTERN` admits only
-            # ASCII, where SQLite's ASCII-only `lower()` and PostgreSQL's locale-aware
-            # one agree - a coincidence worth naming, since searching the description
-            # will be free text and will not inherit it.
+            # `lower()` not `ILIKE`: the latter is PostgreSQL-only and both backends
+            # must answer identically, which holds only because names are ASCII.
+            # TODO: revisit when descriptions become searchable - they are not.
             stmt = stmt.where(
                 sa.func.lower(tables.schema.c.name).like(
                     _like_contains(normalised), escape=_LIKE_ESCAPE

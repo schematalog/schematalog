@@ -22,11 +22,9 @@ from schematalog.app.infrastructure.repositories.memory import MemorySchemaRepos
 from schematalog.app.infrastructure.repositories.sqlalchemy import SQLAlchemySchemaRepository
 from schematalog.domain.schema import Schema, matches_query
 
-# A deliberately tiny alphabet, and short strings. A wide one reads as more thorough and
-# is worse: what breaks a SQL `LIKE` is a *near miss* - a name differing from another in
-# exactly the position where the query holds a wildcard - and with six characters drawn
-# from thirty, such pairs essentially never co-occur. Verified by removing the escaping
-# of `_` from the SQL backend: the wide alphabet passed, this one fails in a few cases.
+# Deliberately tiny, and short: near misses are what break a SQL `LIKE`, and a wider
+# alphabet never generates them. Do not widen it without re-checking it still fails
+# when the escaping of `_` is removed.
 ALPHABET = "ab_.-A"
 FIRST = st.sampled_from("abA")
 REST = st.text(alphabet=ALPHABET, min_size=0, max_size=3)

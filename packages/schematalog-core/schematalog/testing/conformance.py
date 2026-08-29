@@ -247,13 +247,9 @@ class SchemaRepositoryConformance:
     async def test_list_latest_is_empty_for_an_empty_store(self, repository):
         assert [s async for s in repository.list_latest()] == []
 
-    # ---- search: the guarantee, which every backend must meet *exactly* ----
-    #
-    # These are the cases that stop a cleverer backend being a different one. The
-    # promise is a case-insensitive substring of the name, name-ascending, filtered
-    # rather than ranked - narrow enough that a Python scan and a SQL `LIKE` can both
-    # keep it precisely. A backend that stems, fuzzy-matches or reorders fails here
-    # rather than diverging quietly in production (see `DECISIONS.md`).
+    # ---- search: the guarantee every backend must meet exactly ----
+    # A case-insensitive substring of the name, name-ascending, filtered not ranked.
+    # A backend that stems, fuzzy-matches or reorders fails here.
 
     async def test_list_latest_filters_by_a_name_substring(self, repository):
         await repository.add(build_schema(name="billing.invoice", version="1"))
