@@ -247,6 +247,81 @@ class SchemaRepositoryConformance:
     async def test_list_latest_is_empty_for_an_empty_store(self, repository):
         assert [s async for s in repository.list_latest()] == []
 
+    # ---- search: the guarantee, which every backend must meet *exactly* ----
+    #
+    # These are the cases that stop a cleverer backend being a different one. The
+    # promise is a case-insensitive substring of the name, name-ascending, filtered
+    # rather than ranked - narrow enough that a Python scan and a SQL `LIKE` can both
+    # keep it precisely. A backend that stems, fuzzy-matches or reorders fails here
+    # rather than diverging quietly in production (see `DECISIONS.md`).
+
+    async def test_list_latest_filters_by_a_name_substring(self, repository):
+        await repository.add(build_schema(name="billing.invoice", version="1"))
+        await repository.add(build_schema(name="billing.payment", version="1"))
+        await repository.add(build_schema(name="shipping.parcel", version="1"))
+        assert [s.name async for s in repository.list_latest(query="billing")] == [
+            "billing.invoice",
+            "billing.payment",
+        ]
+
+    async def test_list_latest_matches_a_substring_anywhere_in_the_name(self, repository):
+        await repository.add(build_schema(name="billing.invoice", version="1"))
+        assert [s.name async for s in repository.list_latest(query="voi")] == [
+            "billing.invoice"
+        ]
+
+    async def test_list_latest_matches_regardless_of_case(self, repository):
+        await repository.add(build_schema(name="Billing", version="1"))
+        for query in ("billing", "BILLING", "BiLLiNg"):
+            assert [s.name async for s in repository.list_latest(query=query)] == ["Billing"]
+
+    async def test_list_latest_treats_a_blank_query_as_no_query(self, repository):
+        """An empty search box selects everything, rather than nothing."""
+        await repository.add(build_schema(name="alpha", version="1"))
+        for query in (None, "", "   "):
+            assert [s.name async for s in repository.list_latest(query=query)] == ["alpha"]
+
+    async def test_list_latest_yields_nothing_when_the_query_matches_nothing(self, repository):
+        await repository.add(build_schema(name="alpha", version="1"))
+        assert [s async for s in repository.list_latest(query="omega")] == []
+
+    async def test_list_latest_keeps_its_name_order_when_filtering(self, repository):
+        for name in ("gamma.one", "alpha.one", "beta.one"):
+            await repository.add(build_schema(name=name, version="1"))
+        assert [s.name async for s in repository.list_latest(query="one")] == [
+            "alpha.one",
+            "beta.one",
+            "gamma.one",
+        ]
+
+    async def test_list_latest_filters_without_stemming_the_query(self, repository):
+        """A longer query does not match a shorter name.
+
+        The case a full-text backend fails if it turns matching on: an engine with
+        stemming would answer "orders" with `order`, which is a better search and a
+        different one. Being different is what is disallowed.
+        """
+        await repository.add(build_schema(name="order", version="1"))
+        assert [s async for s in repository.list_latest(query="orders")] == []
+
+    async def test_list_latest_treats_sql_wildcards_as_ordinary_characters(self, repository):
+        """`_` and `%` are legal in a name and mean nothing special in a query.
+
+        `_` matches any single character in SQL `LIKE`, so a backend that interpolates
+        the query into a pattern without escaping answers this with both names.
+        """
+        await repository.add(build_schema(name="a_b", version="1"))
+        await repository.add(build_schema(name="axb", version="1"))
+        assert [s.name async for s in repository.list_latest(query="a_b")] == ["a_b"]
+
+    async def test_list_latest_searches_only_the_latest_version(self, repository):
+        """One hit per name, not one per version - the filter narrows the same listing."""
+        await repository.add(build_schema(name="alpha", version="1"))
+        await repository.add(build_schema(name="alpha", version="2"))
+        assert [(s.name, s.version) async for s in repository.list_latest(query="alpha")] == [
+            ("alpha", "2")
+        ]
+
     # ---- list_predecessors (derived, may be overridden) -----------------------------
 
     async def test_list_predecessors_finds_every_version_pointing_at_the_url(self, repository):

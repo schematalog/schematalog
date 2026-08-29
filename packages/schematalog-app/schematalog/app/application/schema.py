@@ -64,6 +64,15 @@ class ListVersionsCommand(BaseModel):
     name: SchemaName
 
 
+class ListLatestCommand(BaseModel):
+    """Input for `SchemaService.list_latest_schemas`."""
+
+    query: str | None = None
+    """Narrows the listing to schemas whose name contains this, ignoring case. `None` or
+    blank selects everything, so an empty search box behaves as no search rather than as
+    a search for nothing. The repository owns the matching rule; see `matches_query`."""
+
+
 class ListPredecessorsCommand(BaseModel):
     """Input for `SchemaService.list_schema_predecessors`."""
 
@@ -250,13 +259,20 @@ class SchemaService:
                 f"Successor target does not exist: `{target.name} v{target.version}`."
             ) from exc
 
-    async def list_latest_schemas(self) -> AsyncIterable[SchemaView]:
-        """The latest version of every schema in this scope.
+    async def list_latest_schemas(
+        self, command: ListLatestCommand | None = None
+    ) -> AsyncIterable[SchemaView]:
+        """The latest version of every schema, optionally narrowed by a search.
+
+        Args:
+            command: the listing's parameters; omitted means an unfiltered listing.
 
         Yields:
-            A view of each latest version, in ascending name order.
+            A view of each latest version, in ascending name order. Filtered rather than
+            ranked, so the order is the same with a query as without one.
         """
-        async for schema in self._repo.list_latest():
+        command = command or ListLatestCommand()
+        async for schema in self._repo.list_latest(query=command.query):
             yield SchemaView.from_schema(schema)
 
     async def list_schema_versions(

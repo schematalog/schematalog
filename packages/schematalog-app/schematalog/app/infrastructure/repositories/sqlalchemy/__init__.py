@@ -24,6 +24,7 @@ from schematalog.domain.schema import (
     SchemaRepository,
     SuccessorReference,
     Unset,
+    normalise_query,
 )
 
 from . import tables
@@ -43,6 +44,25 @@ def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
         else_=0,
     )
     return (current.desc(), source.c.publication_id.desc())
+
+
+_LIKE_ESCAPE = "\\"
+
+
+def _like_contains(query: str) -> str:
+    """A `LIKE` pattern matching `query` anywhere in a value, wildcards defanged.
+
+    `%` and `_` are wildcards to `LIKE`, and both are legal in a schema name - so a
+    query interpolated straight into a pattern quietly means something else, and `a_b`
+    would match `axb`. The conformance suite pins that case precisely because the bug is
+    invisible until someone searches for a name with an underscore in it.
+    """
+    escaped = (
+        query.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+        .replace("%", f"{_LIKE_ESCAPE}%")
+        .replace("_", f"{_LIKE_ESCAPE}_")
+    )
+    return f"%{escaped}%"
 
 
 class SQLAlchemySchemaRepository(SchemaRepository):
@@ -149,7 +169,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         for row in rows:
             yield row.name
 
-    async def list_latest(self) -> AsyncIterable[Schema]:
+    async def list_latest(self, *, query: str | None = None) -> AsyncIterable[Schema]:
         await self._ensure_tables()
         # Correlated subquery: keep each name's latest by the same rule as `get_latest`.
         # ORDER BY ... LIMIT 1 rather than max(): PostgreSQL has no max() aggregate over
@@ -168,6 +188,20 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             .where(tables.schema.c.publication_id == latest_publication)
             .order_by(tables.schema.c.name.asc())
         )
+        normalised = normalise_query(query)
+        if normalised is not None:
+            # The same guarantee as the base class, pushed into the store: a
+            # case-insensitive substring of the name. `lower()` rather than `ILIKE`
+            # because the latter is PostgreSQL-only and both backends have to answer
+            # identically. That equivalence holds because `NAME_PATTERN` admits only
+            # ASCII, where SQLite's ASCII-only `lower()` and PostgreSQL's locale-aware
+            # one agree - a coincidence worth naming, since searching the description
+            # will be free text and will not inherit it.
+            stmt = stmt.where(
+                sa.func.lower(tables.schema.c.name).like(
+                    _like_contains(normalised), escape=_LIKE_ESCAPE
+                )
+            )
         async with self.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         for row in rows:

@@ -185,3 +185,40 @@ async def test_all_versions_of_a_schema_are_returned(client, example_schema):
     for index, schema in enumerate(read_schemas["schemas"]):
         assert schema["name"] == schema_name
         assert schema["version"] == expected_versions[index]
+
+
+def test_listing_schemas_filters_by_a_name_query(client, example_schema):
+    """`?q=` narrows the collection rather than being a separate search resource."""
+    for name in ("billing.invoice", "billing.payment", "shipping.parcel"):
+        client.post("/api/schemas", json={**example_schema, "name": name})
+
+    response = client.get("/api/schemas", params={"q": "billing"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert [s["name"] for s in response.json()["schemas"]] == [
+        "billing.invoice",
+        "billing.payment",
+    ]
+
+
+def test_listing_schemas_ignores_a_blank_query(client, example_schema):
+    """An empty search box selects everything, rather than nothing."""
+    client.post("/api/schemas", json=example_schema)
+
+    for params in ({}, {"q": ""}, {"q": "   "}):
+        response = client.get("/api/schemas", params=params)
+        assert [s["name"] for s in response.json()["schemas"]] == [example_schema["name"]]
+
+
+def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
+    """Filtered, not ranked: the order is the same with a query as without one."""
+    for name in ("gamma.one", "alpha.one", "beta.one"):
+        client.post("/api/schemas", json={**example_schema, "name": name})
+
+    response = client.get("/api/schemas", params={"q": "one"})
+
+    assert [s["name"] for s in response.json()["schemas"]] == [
+        "alpha.one",
+        "beta.one",
+        "gamma.one",
+    ]

@@ -354,6 +354,37 @@ class Schema(BaseModel):
         return cls.model_validate(raw)
 
 
+def normalise_query(query: str | None) -> str | None:
+    """A search query as matching sees it, or `None` when it selects everything.
+
+    Blank and whitespace-only queries are absent queries. `?q=` is what an empty search
+    box submits, and answering it with nothing would be a worse answer than answering it
+    with everything.
+    """
+    if query is None:
+        return None
+    normalised = query.strip().casefold()
+    return normalised or None
+
+
+def matches_query(schema: Schema, query: str | None) -> bool:
+    """Whether `schema` satisfies the search guarantee for `query`.
+
+    The guarantee is deliberately narrow - a case-insensitive substring of the name -
+    because the same interface sits over a Python scan, a SQL `LIKE`, and one day
+    something with an index, and a caller has to be able to rely on the answer being the
+    same wherever it runs. A faster implementation is allowed; a different one is not.
+    Stemming, fuzzy matching and relevance ordering are all *differences*, which is why
+    none of them are promised (see `DECISIONS.md`).
+
+    `casefold` rather than `lower`: it is the comparison Unicode defines for this, and
+    although `NAME_PATTERN` admits only ASCII today, the fields matched here are expected
+    to grow to include the description, which is free text.
+    """
+    normalised = normalise_query(query)
+    return normalised is None or normalised in schema.name.casefold()
+
+
 class SchemaRepository(ABC):
     """The storage contract, and the seam a third-party backend implements.
 
@@ -445,13 +476,20 @@ class SchemaRepository(ABC):
             raise UnknownSchemaError(schema_name)
         return newest
 
-    async def list_latest(self) -> AsyncIterable[Schema]:
+    async def list_latest(self, *, query: str | None = None) -> AsyncIterable[Schema]:
         """The latest version of every schema, in name-ascending order.
 
-        "Latest" means the same thing as in `get_latest`, per name.
+        "Latest" means the same thing as in `get_latest`, per name. `query` narrows the
+        result to versions satisfying `matches_query`; `None` or blank selects everything.
+
+        Filtering costs nothing extra here, since this already fetches each name's
+        latest - so a backend overrides this to push the filter into the store, not to
+        rescue work that this does badly.
         """
         async for schema_name in self.list_names():
-            yield await self.get_latest(schema_name)
+            schema = await self.get_latest(schema_name)
+            if matches_query(schema, query):
+                yield schema
 
     async def list_predecessors(self, successor_url: str) -> AsyncIterable[Schema]:
         """All versions whose declared successor is `successor_url` (derived predecessors).

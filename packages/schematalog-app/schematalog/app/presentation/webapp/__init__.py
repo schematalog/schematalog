@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from schematalog.app.application.exceptions import DuplicateSchemaError, InvalidSchemaError
 from schematalog.app.application.schema import (
     GetSchemaCommand,
+    ListLatestCommand,
     ListPredecessorsCommand,
     ListVersionsCommand,
     PublishCommand,
@@ -68,12 +69,22 @@ async def homepage(request: Request):
 
 
 @router.get("/schemas/", name="schemas_list")
-async def schemas_list(request: Request, service: SchemaService = Depends(get_service)):
-    """Render list of all schemas."""
+async def schemas_list(
+    request: Request, q: str = "", service: SchemaService = Depends(get_service)
+):
+    """Render the schema list, narrowed by `q` when one is given.
+
+    The query round-trips into the response so the box still shows what was searched
+    for, and so the empty state can say which search found nothing rather than claiming
+    the registry is empty.
+    """
     schemas = [
-        _template_schema(view, request)[0] async for view in service.list_latest_schemas()
+        _template_schema(view, request)[0]
+        async for view in service.list_latest_schemas(ListLatestCommand(query=q))
     ]
-    return templates.TemplateResponse(request, "schemas.html.jinja", {"schemas": schemas})
+    return templates.TemplateResponse(
+        request, "schemas.html.jinja", {"schemas": schemas, "query": q}
+    )
 
 
 @router.get("/schemas/{schema_name}", name="schemas_detail")

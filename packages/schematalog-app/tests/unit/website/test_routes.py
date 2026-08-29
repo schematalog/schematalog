@@ -187,3 +187,31 @@ def test_the_mark_strokes_only_its_inner_rules(client):
     mark = mark[: mark.index("</svg>")]
     assert "stroke-width:9" not in mark, "the leftover font stroke width is back"
     assert mark.count('stroke="currentColor"') == 1, "only the bars group is stroked"
+
+
+def test_schema_list_search_narrows_the_page(client, example_schema):
+    """The search box is a plain GET form, so it works with no JavaScript."""
+    for name in ("billing.invoice", "shipping.parcel"):
+        client.post("/api/schemas", json={**example_schema, "name": name})
+
+    page = client.get("/schemas/", params={"q": "billing"}).text
+
+    assert "billing.invoice" in page
+    assert "shipping.parcel" not in page
+    # The box still shows what was searched for, so the result is explicable.
+    assert 'value="billing"' in page
+
+
+def test_schema_list_says_which_search_found_nothing(client, example_schema):
+    """A fruitless search must not read as an empty registry.
+
+    Both states render the same otherwise, and telling a first-time visitor the
+    registry is empty when it is their query that missed is the worse of the two.
+    """
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get("/schemas/", params={"q": "nothing-matches-this"}).text
+
+    assert "No schemas yet" not in page
+    assert "nothing-matches-this" in page
+    assert "Show every schema" in page

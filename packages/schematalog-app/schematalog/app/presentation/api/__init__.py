@@ -1,14 +1,15 @@
 """JSON API for the schema catalogue."""
 
 from http import HTTPStatus
-from typing import Any
+from typing import Annotated, Any
 import uuid
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from schematalog.app.application.schema import (
     GetSchemaCommand,
+    ListLatestCommand,
     ListPredecessorsCommand,
     ListVersionsCommand,
     MetadataUpdateCommand,
@@ -50,11 +51,29 @@ def _to_response(view: SchemaView, request: Request) -> SchemaResponse:
 
 @router.get("/schemas", response_model=SchemaListResponse, response_model_exclude_none=True)
 async def get_schemas(
-    request: Request, service: SchemaService = Depends(get_service)
+    request: Request,
+    service: SchemaService = Depends(get_service),
+    q: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Narrow the listing to schemas whose name contains this, ignoring case. "
+                "Matching is a plain substring: it does not stem, spell-correct or rank, "
+                "and results keep their name order whether or not a query is given."
+            )
+        ),
+    ] = None,
 ) -> SchemaListResponse:
-    """Retrieve the latest versions of all published schemas."""
+    """Retrieve the latest versions of all published schemas, optionally filtered.
+
+    A query parameter on the collection rather than a separate search resource: this
+    narrows the same listing, in the same order, returning the same representation.
+    """
     return SchemaListResponse(
-        schemas=[_to_response(view, request) async for view in service.list_latest_schemas()]
+        schemas=[
+            _to_response(view, request)
+            async for view in service.list_latest_schemas(ListLatestCommand(query=q))
+        ]
     )
 
 
