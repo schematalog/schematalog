@@ -99,7 +99,7 @@ down:
 # --- Code & run ---
 
 # Reformat the code using isort and ruff.
-[confirm]
+[confirm("Reformat every source file in place? [y/N]")]
 reformat:
     uv run ruff format .
     uv run ruff check --select I --fix .
@@ -109,7 +109,7 @@ reqs:
     uv export --no-dev
 
 # Build, check and publish one distribution to PyPI (append `--dry-run` to rehearse).
-[confirm("Publish to PyPI? A version cannot be replaced once uploaded.")]
+[confirm("Publish to PyPI? A version cannot be replaced once uploaded. [y/N]")]
 publish package *flags:
     #!/usr/bin/env sh
     set -eu
@@ -201,7 +201,7 @@ seed:
     uv run python -m scripts.seed
 
 # Recreate the local SQLite dev DB and reseed (use after a schema change).
-[confirm("Delete db.sqlite3 and reseed?")]
+[confirm("Delete db.sqlite3 and reseed? [y/N]")]
 reset: && seed
     rm -f db.sqlite3
 
