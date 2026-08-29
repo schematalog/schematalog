@@ -108,6 +108,47 @@ reformat:
 reqs:
     uv export --no-dev
 
+# Build, check and publish one distribution to PyPI (append `--dry-run` to rehearse).
+[confirm("Publish to PyPI? A version cannot be replaced once uploaded.")]
+publish package *flags:
+    #!/usr/bin/env sh
+    set -eu
+    # Takes the distribution name in either spelling - `schematalog-core` or
+    # `schematalog_core` - because the artifacts on disk are named with underscores and
+    # everything else uses hyphens, so both are on screen when reaching for this.
+    package=$(echo "{{package}}" | tr '_' '-')
+    # An upload cannot be undone: a version number, once used, is spent. So refuse first
+    # on the two things that cost nothing to check - uncommitted work, and a version that
+    # was never tagged. Release automation proper waits for 1.0 (see DECISIONS.md);
+    # until then this is what keeps the handful of manual releases consistent.
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "ERROR: working tree is dirty; commit or stash before publishing." >&2
+        exit 1
+    fi
+    # Only the application needs this: its sdist force-includes the built frontend, and
+    # the build fails outright without them rather than shipping an unstyled wheel.
+    if [ "$package" = "schematalog-app" ]; then {{just_executable()}} build-fe; fi
+    rm -rf dist
+    uv build --package "$package"
+    stem=$(basename "$(ls dist/*.tar.gz)" .tar.gz)
+    version=${stem##*-}
+    # The meta-package gets no tag of its own - the application's release covers both,
+    # and the two versions are always equal (DECISIONS.md, enforced by
+    # scripts/check_versions.py). Looking for its own tag would refuse it forever.
+    if [ "$package" = "schematalog" ]; then
+        tag="schematalog-app/v$version"
+    else
+        tag="$package/v$version"
+    fi
+    if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+        echo "ERROR: built $version but there is no tag $tag." >&2
+        echo "       Every version bump carries an annotated tag - see DECISIONS.md." >&2
+        exit 1
+    fi
+    uvx twine check dist/*
+    echo "Publishing $package $version (tagged $tag)"
+    uv publish {{flags}} dist/*
+
 port := "3000"
 
 # Run the dev server with reload on http://localhost:3000.
