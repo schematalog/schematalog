@@ -98,12 +98,13 @@ does not consume it, and the eventual frontend reaches it through a backend-for-
 rather than directly. So this is a resource API answering for itself, not one shaped by
 what a page happens to render.
 
-**Order agreed 2026-08-22**, and the list below follows it: versioning, then storage,
-then catalogs and labels together, then search, then reference resolution, then import
-last if at all. The first two go first because they are the only settled items, because
-versioning gates storage, and because both touch every repository signature the catalog
-work would otherwise be adding to - so catalogs get built against the final contract
-rather than rewritten into it.
+**Order revised 2026-08-29** (see `DECISIONS.md`): versioning, then storage - both
+done - then **search**, then **labels**, then **catalogs only if still wanted**, then
+reference resolution, then import last if at all. Search moved ahead of grouping because
+finding things in a large registry is what grouping is *for*, and because a catalog is a
+second aggregate that would either double what the storage guide asks of a backend author
+or fracture the contract into which-backend-supports-what. Labels avoid that entirely:
+they are mutable per-schema metadata, the family `set_metadata` already carries.
 - **Order versions by publication, not by string.** Decided (see `DECISIONS.md`):
   versions stay free-form and the registry never interprets them, so ordering becomes a
   registry fact. Each version gains an immutable `publication_id` - a UUIDv7, required
@@ -143,28 +144,30 @@ rather than rewritten into it.
      route that has been travelled, including whatever turned out to be awkward, which is
      the part a third party most needs warning about. Moved here from phase 5's
      documentation bullet: an extension point nobody has instructions for is not finished.
-- **Catalogs as a first-class resource.** A catalog is a thing in its own right with its
-  own attributes - slug, name, description, likely more - and its own endpoints: create,
-  list, retrieve, update, delete, plus adding and removing member schemas. Asking for a
-  catalog lists the schemas it references. Membership points at a **schema**, not at a
-  specific version, and is mutable metadata; removing a catalog removes no schemas.
-  This is built fresh rather than adapted from the tenant code.
-  - Open: whether "catalog" is the right word for something that references rather than
-    contains. It reads well and a library catalog does not hold the books either, so the
-    working assumption is yes.
-  - Deliberately later: catalogs whose membership pins *specific versions*, turning a
-    catalog into a manifest of "these schemas, at exactly these versions". Interesting,
-    and no comparable registry appears to offer it, but not founding behaviour.
-- **Per-schema labels or annotations.** Catalogs now cover grouping, so what remains is
-  whether an individual schema also needs its own free-form tags, a fixed category
-  hierarchy, or arbitrary annotations - and whether that is distinct enough from catalog
-  membership to be worth a second mechanism. **Decided alongside catalogs** rather than
-  alongside search (the earlier pairing): whether a second grouping mechanism exists is a
-  catalog-design question, not a search one - catalogs cannot be shaped without knowing
-  whether labels sit beside them. Search then indexes whatever the two produce.
 - **Search.** The most-missed capability: today a catalog with hundreds of schemas
-  offers one alphabetical list and nothing else. Scope to settle - at minimum, search
-  by name; realistically also full-text over descriptions and schema content.
+  offers one alphabetical list and nothing else. **Fully decided** (see `DECISIONS.md`)
+  and next up. A capability with a default implementation rather than a sixth required
+  repository method - the base class scans, a backend overrides when its store can answer
+  better - so it works everywhere from the first release. Defined by its guarantee
+  (case-insensitive substring matching, name-ascending) rather than by its mechanism, so
+  a better engine may only be faster and never different, and the conformance suite says
+  so. Filtered, never ranked. Query parameters on `/api/schemas`, not a new resource.
+  Name first, then description, then document content with property names above all.
+  **Pagination is settled with it**, since search is what makes large results likely.
+- **Labels or annotations on a schema.** Free-form tags, a fixed category hierarchy,
+  or arbitrary annotations - scope still open, including whether free-form labels need
+  any constraint to stop them drifting (`payments`, `payment`, `Payments`). Cheap by
+  construction: mutable per-schema metadata in the same family as `deprecated` and
+  `successor`, so it extends one existing method rather than adding an aggregate.
+- **Catalogs, only if labels and search leave something missing.** Deferred 2026-08-29
+  rather than dropped; `DECISIONS.md` keeps both the design (soft grouping, referencing
+  rather than containing) and the reason for holding off. The test for whether one is
+  ever needed: a grouping that must be **described, linked to and owned** - "the payments
+  team's schema set", with a URL and a paragraph saying what it means. Labels can be
+  searched, filtered and combined, but cannot carry that prose, cannot be renamed without
+  rewriting every member, and can only be discovered by scanning rather than listed
+  authoritatively. If nobody asks for the describable thing, an aggregate and a contract
+  expansion are saved.
 - **Reference resolution, bundling, and the dependency graph.** Three faces of one
   mechanism - reading the `$ref`s inside a stored document. Today the registry stamps
   each schema with a resolvable address so references *can* be followed, but it will not
@@ -296,6 +299,19 @@ always been kept thin *for*. It owns what the API does not:
   the storage contract does *not* carry a reset method. Each is orchestration over
   per-version endpoints the API already has: read, translate, decide what to skip, retry
   the failures, report what happened. None of it needs to run inside the registry.
+- **Moving a registry from one backend to another** - "search is constant now and the
+  catalogue has outgrown PostgreSQL; move it to Elastic". Far future, and listed because
+  it is the use case that makes the bulk operations above worth building rather than a
+  curiosity. The tractable version is backend-to-backend *within one instance*: the
+  address stays the same, so every `$id` keeps resolving, and the work is read
+  everything through the API, repoint `SCHEMATALOG_STORAGE_URL`, write it all back.
+  **The obstacle is `publication_id`.** It is minted above the repository layer,
+  immutable, and validated as a UUIDv7; it is also the ordering of every version and the
+  source of `published_on`. Republishing through the API mints a fresh one, so a naive
+  copy would stamp the entire catalogue as published on migration day and could reorder
+  it. Preserving it needs an affordance the publish endpoint deliberately does not have -
+  which is the same question the import item in phase 2 has to answer, and a good reason
+  to answer it there rather than twice.
 
 Open: whether to build on momoa (already open source, parked for exactly this) or
 start fresh.
@@ -462,6 +478,20 @@ site it was waiting on.
   different product surface, and possibly a better fit for the SDK than the API.
 - Bulk export, the counterpart of the import path above. Less urgent, but "can I get my
   schemas back out" is a fair question to be able to answer for a self-hosted product.
+- **Elasticsearch or OpenSearch as a backend.** The obvious next out-of-tree backend
+  once search exists, and the strongest test the extension point has had: it would be
+  the first store that can push a query down *richly* rather than merely efficiently,
+  which is exactly the case the "a backend may override when it can answer better" seam
+  was built for. Two things to settle before it is more than an idea. **Near-real-time
+  indexing**: a get by document id is immediate, but anything search-backed - which for
+  this backend would include `list_names` and `list_versions` - lags by the refresh
+  interval, so publishing and immediately listing may not see the new version. The
+  conformance suite does exactly that, so it would fail, which is the suite doing its
+  job rather than an obstacle. And **whether a search index is an acceptable system of
+  record** for a registry whose whole promise is that a `$id` resolves forever; the
+  honest answer may be that it belongs as a secondary index beside a durable store
+  rather than as primary storage, which is a different shape from the seam we have.
+
 - **A git repository as a storage backend**, distinct from pointing the filesystem
   backend at a working tree: here Schematalog authors the commits and tags itself, so the
   repository *is* the store rather than a directory that happens to be versioned. The fit
