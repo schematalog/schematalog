@@ -27,6 +27,69 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-29: What waits for 2.0, and why it is a decision rather than a gap
+
+**Decided.** Three things that a mature project would have, and this one deliberately
+does not yet: a **changelog**, **versioned documentation**, and **release automation**.
+All three wait for 2.0, which is when the project opens to users. Each is recorded here
+together because they share one reason and would otherwise read, separately, as three
+oversights.
+
+**The shared reason is that each is a permanent commitment made on behalf of users who
+do not exist.** A published documentation version is a URL that must keep resolving; a
+changelog is a promise to keep describing every change; a release pipeline encodes a
+process before the process has settled. None of them can be quietly withdrawn once
+someone depends on them, and there is nobody yet to depend on them.
+
+**The pairing argument is what settles the documentation half.** Versioned docs without
+a changelog is the incoherent combination specifically: a reader can pin a version but
+has no way to learn what changed between two of them. Better to offer one honest
+"current" than a version selector that cannot answer the question it invites. So the
+docs site builds `latest` from `main` and activates no tags. The tags themselves are
+fine - Read the Docs slugifies `schematalog-app/v0.1.0` to `schematalog-app-v0.1.0`
+without complaint, so the slash in the tag scheme was a false alarm and is not what is
+holding this back.
+
+**When versioned docs do arrive, they track `schematalog-app` tags only.** The other
+distributions are invisible to a documentation reader; the version a reader means is the
+application's, which already tracks the roadmap phase and is what `GET /version` and the
+footer report. Building the core and s3 tags would publish near-identical sites per
+release and invite the question of which one to read.
+
+**Release automation waits with them, and cannot easily come earlier anyway.** Trusted
+publishing draws its OIDC token from inside a workflow, so there is no getting the
+long-lived PyPI token out of the loop before the workflow exists; the two are one piece
+of work, not two. The intended shape, when it is built: a push of a `*/v*` tag triggers
+it, the tag names which distribution is released, and the first job verifies that the
+tag version matches that distribution's `__version__` constant and that the tag is
+reachable from `main`. That gate is the part worth having - a PyPI upload cannot be
+replaced once made, so a mismatch caught before publishing is a non-event and one caught
+afterwards is a spent version number. Publishing precedes creating the GitHub release,
+so a failed upload cannot leave a release announcing a version that does not exist.
+
+**Deploying to the production instance will be automatic** on an application release,
+inside its own environment so the credential is scoped and a required reviewer can be
+added later without restructuring. Decided against keeping it manual: it is the step
+most likely to be forgotten, and the footer publishes the running version, so the drift
+between what was released and what is running is visible to everyone but us.
+
+**Left open until it is built:** whether the GitHub release notes come from the
+annotated tag's message or are generated from the commits. Both are defensible and
+neither is costly to change.
+
+**Two things did not wait**, because neither is release automation and both concern
+what is already published. The meta-package's dependency on the application gained a
+lower bound - a floor, still never `==`, which leaves intact the reason the
+2026-08-23 entry gives for refusing an exact pin, since forgetting to republish the meta
+still leaves users with the current application rather than a stale one. And the
+equality between the meta-package's version and the application's is now checked in CI
+(`scripts/check_versions.py`). That entry deferred the check to the publishing workflow
+on the understanding that the workflow was near; with it now deferred to 2.0, the rule
+would otherwise go unenforced across every release in between, held by nothing but a
+paragraph.
+
+---
+
 ## 2026-08-25: The CLI becomes an extension point; where it lives stays open
 
 **Open, with a leaning.** `schematalog` is today a two-command argparse CLI (`serve`,
