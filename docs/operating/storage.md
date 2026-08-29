@@ -1,7 +1,7 @@
 # Choosing a storage backend
 
 Schematalog stores schemas in one of several backends, chosen by the scheme of
-`SCHEMATALOG_STORAGE_URL` (see [Configuration](../reference/configuration.md) for the
+`SCHEMATALOG_STORAGE_URL` (see [Configuration](configuration.md) for the
 syntax). This page is about *which* to choose.
 
 **If you do not want to think about it, do not.** The default is SQLite in the working

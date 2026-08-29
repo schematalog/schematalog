@@ -37,7 +37,7 @@ act on the status code alone. The body carries no detail - the endpoint is publi
 driver's connection error names hosts and user names - so the reason goes to the log,
 where only the operator can read it.
 
-When you outgrow the default, [Choosing a storage backend](guides/storage.md) covers
+When you outgrow the default, [Choosing a storage backend](operating/storage.md) covers
 what to move to and why.
 
 The rest of this page walks through reading and publishing a schema. The examples use
@@ -111,10 +111,10 @@ stamped into the document:
 !!! note "Note the registry's `$id` and `$schema` handling"
     You did not send `$id` or `$schema`. Schematalog **strips any incoming `$id`**
     on publish and **stamps its own canonical one** on read, and it **infers
-    `$schema`** if you omit it. See [Publishing](guides/publishing.md) and
-    [Retrieving](guides/retrieving.md).
+    `$schema`** if you omit it. See [Publishing](api/publishing.md) and
+    [Retrieving](api/retrieving.md).
 
 ## Next steps
 
-- [Publishing](guides/publishing.md) — versioning rules and validation.
-- [Retrieving](guides/retrieving.md) — canonical URLs and `$ref` resolution.
+- [Publishing](api/publishing.md) — versioning rules and validation.
+- [Retrieving](api/retrieving.md) — canonical URLs and `$ref` resolution.

@@ -32,7 +32,7 @@ stages.
 The backend is selected by the **scheme** of `SCHEMATALOG_STORAGE_URL`, and that
 backend's own options travel as query parameters. One variable configures the store
 completely; there is no second place to look. For *which* backend to choose, see
-[Choosing a storage backend](../guides/storage.md).
+[Choosing a storage backend](storage.md).
 
 | Scheme | Backend | Example |
 | --- | --- | --- |

@@ -47,7 +47,7 @@ SCHEMATALOG_STORAGE_URL=file:///data/schemas                # plain files you ca
 Backends install themselves: [`schematalog-s3`](https://pypi.org/project/schematalog-s3/)
 adds the `s3` scheme by being installed. Writing your own means implementing five methods
 against `schematalog-core` and inheriting a published conformance suite that tells you
-whether you got it right — see [Choosing a storage backend](docs/guides/storage.md).
+whether you got it right — see [Choosing a storage backend](docs/operating/storage.md).
 
 ## The packages
 

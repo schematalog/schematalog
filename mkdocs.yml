@@ -17,7 +17,9 @@ theme:
     logo: material/database-search
   features:
     - navigation.instant
-    - navigation.sections
+    # Lets a section's `index.md` be the section itself, so clicking the heading goes
+    # somewhere instead of only toggling it open.
+    - navigation.indexes
     - content.code.copy
     - content.code.annotate
     - search.suggest
@@ -58,16 +60,24 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
 
+# Sorted by who is reading, not by what kind of page it is: the reference pages sit
+# inside the section whose reader needs them, so an operator is never sent hunting in
+# a sibling tree for half their material. Each section leads with an index page that
+# says who it is for and in what order to read it - the one thing the sidebar cannot.
 nav:
   - Home: index.md
   - Getting started: getting-started.md
-  - Guides:
-    - guides/storage.md
-    - guides/writing-a-backend.md
-    - guides/publishing.md
-    - guides/retrieving.md
-    - guides/lifecycle.md
-    - guides/formats.md
-  - Reference:
-    - reference/api.md
-    - reference/configuration.md
+  - Running an instance:
+    - operating/index.md
+    - operating/configuration.md
+    - operating/storage.md
+    - operating/writing-a-backend.md
+  - Using the API:
+    - api/index.md
+    - api/publishing.md
+    - api/retrieving.md
+    - api/lifecycle.md
+    - api/reference.md
+  - Using the web UI:
+    - webui/index.md
+    - webui/formats.md
