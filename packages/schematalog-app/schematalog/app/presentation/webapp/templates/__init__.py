@@ -88,8 +88,13 @@ def asset_context(request: Request) -> dict[str, Any]:
 
 
 def build_context(request: Request) -> dict[str, Any]:
-    """Footer build info: the curated version and the running commit's date."""
-    return {"app_version": request.app.version, "version_date": buildinfo.commit_date()}
+    """Footer content: the running build, plus where to read about it."""
+    return {
+        "app_version": request.app.version,
+        "version_date": buildinfo.commit_date(),
+        "docs_url": buildinfo.DOCS_URL,
+        "repository_url": buildinfo.REPOSITORY_URL,
+    }
 
 
 templates = Jinja2Templates(

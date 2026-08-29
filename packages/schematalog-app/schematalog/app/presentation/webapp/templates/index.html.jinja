@@ -1,4 +1,5 @@
 {% extends "app_base.html.jinja" %}
+{% import "_icons.html.jinja" as icon %}
 
 {% block content %}
 <div class="mb-8">
@@ -17,8 +18,12 @@
     <a href="{{ url_for('swagger_ui_html') }}" target="_blank" rel="noopener"
        class="card bg-base-100 border border-base-300 shadow-sm transition-colors hover:border-primary">
         <div class="card-body gap-2 p-4">
-            <h2 class="card-title text-base">API documentation</h2>
-            <p class="text-sm opacity-70">Interactive OpenAPI reference for the JSON API.</p>
+            <h2 class="card-title text-base">
+                API documentation{{ icon.external() }}{{ icon.new_tab_note() }}
+            </h2>
+            <p class="text-sm opacity-70">
+                Interactive OpenAPI reference for the JSON API. Opens in a new tab.
+            </p>
         </div>
     </a>
 </div>

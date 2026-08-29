@@ -1,4 +1,5 @@
 {# Tailwind v4 + DaisyUI base; every page extends this. #}
+{% import "_icons.html.jinja" as icon %}
 <!DOCTYPE html>
 <html data-theme="light" lang="en">
 <head>
@@ -26,7 +27,7 @@
             </a>
         </div>
         <nav class="flex-none flex items-center gap-3 text-sm">
-            <a class="link link-hover" href="{{ url_for('schemas_publish') }}">Publish</a>
+            <a class="btn btn-sm btn-primary" href="{{ url_for('schemas_publish') }}">Publish</a>
         </nav>
     </header>
 
@@ -34,8 +35,24 @@
     {% block content %}{% endblock %}
     </main>
 
-    <footer class="footer footer-center p-4 text-xs opacity-60 border-t border-base-300">
-        <span>version {{ app_version }}{% if version_date %} {{ version_date }}{% endif %}</span>
+    {# Everything the app serves about itself, in one place. Only the two off-site links
+       open a new tab: leaving the site is the case where losing your place costs
+       something, and a same-origin page is one Back press away. Each of those is marked
+       with the arrow icon and an announced note - see `_icons.new_tab_note`. #}
+    <footer class="footer footer-center gap-2 border-t border-base-300 p-4 text-xs">
+        <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <a class="link link-hover inline-flex items-center gap-1.5"
+               href="{{ url_for('swagger_ui_html') }}">{{ icon.braces() }}API reference</a>
+            <a class="link link-hover inline-flex items-center gap-1.5"
+               href="{{ url_for('openapi_yaml') }}">{{ icon.file() }}OpenAPI spec</a>
+            <a class="link link-hover inline-flex items-center gap-1.5"
+               href="{{ docs_url }}" target="_blank" rel="noopener">
+                {{ icon.book() }}Read the Docs{{ icon.external() }}{{ icon.new_tab_note() }}</a>
+            <a class="link link-hover inline-flex items-center gap-1.5"
+               href="{{ repository_url }}" target="_blank" rel="noopener">
+                {{ icon.github() }}GitHub{{ icon.external() }}{{ icon.new_tab_note() }}</a>
+        </nav>
+        <span class="opacity-60">version {{ app_version }}{% if version_date %} {{ version_date }}{% endif %}</span>
     </footer>
 
     {% block foot_extras %}{% endblock %}

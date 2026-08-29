@@ -15,6 +15,19 @@ from schematalog.app import __version__
 
 _SOURCE_TREE = Path(__file__).parent
 
+DOCS_URL = "https://schematalog.readthedocs.io/"
+"""Where the prose documentation lives, linked from the footer.
+
+Deliberately off-site rather than served by the app. The docs describe *a version*,
+and the host versions them per release with a selector; a copy shipped inside the
+application would be frozen at whatever went out and could not be corrected without
+a release. It would also have to find a home other than `/docs`, which is already
+the generated OpenAPI reference.
+"""
+
+REPOSITORY_URL = "https://github.com/berislavlopac/schematalog"
+"""The source repository, linked from the footer."""
+
 
 def app_version() -> str:
     """The curated app version.

@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 from schematalog.app.presentation import app
+from schematalog.app.presentation.helpers import buildinfo
 
 
 def test_homepage_renders(client):
@@ -98,3 +99,23 @@ def test_page_titles_lead_with_the_page(client, published):
 
     detail = client.get(f"/schemas/{published['name']}").text
     assert f"<title>{published['name']} v{published['version']} - Schematalog</title>" in detail
+
+
+def test_footer_links_to_the_documentation_and_the_source(client):
+    """Everything the app can tell you about itself is reachable from any page."""
+    footer = client.get("/").text
+    assert buildinfo.DOCS_URL in footer
+    assert buildinfo.REPOSITORY_URL in footer
+    assert 'href="http://testserver/docs"' in footer
+    assert 'href="http://testserver/openapi.yaml"' in footer
+
+
+def test_every_new_tab_link_says_so(client, published):
+    """A link that leaves for a new tab announces it rather than surprising the reader.
+
+    Checked structurally rather than per-link: the rule is that `target="_blank"` and
+    the note travel together, so a link added later without one is caught.
+    """
+    for path in ("/", "/schemas/", f"/schemas/{published['name']}"):
+        page = client.get(path).text
+        assert page.count('target="_blank"') == page.count("(opens in a new tab)"), path
