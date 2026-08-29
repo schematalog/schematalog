@@ -80,3 +80,21 @@ def test_highlighted_code_keeps_its_copy_target(client, published):
     response = client.get(f"/schemas/{published['name']}")
     assert 'id="code-json"' in response.text
     assert 'data-copy="code-json"' in response.text
+
+
+def test_home_page_title_is_just_the_site_name(client):
+    """Home has nothing to add, so it does not repeat itself.
+
+    The base template appends " - Schematalog" only when a page contributes a title
+    of its own; the home page leaves the block empty.
+    """
+    assert "<title>Schematalog</title>" in client.get("/").text
+
+
+def test_page_titles_lead_with_the_page(client, published):
+    """A tab label truncates from the right, so the distinguishing part comes first."""
+    assert "<title>Publish a schema - Schematalog</title>" in client.get("/publish").text
+    assert "<title>All schemas - Schematalog</title>" in client.get("/schemas/").text
+
+    detail = client.get(f"/schemas/{published['name']}").text
+    assert f"<title>{published['name']} v{published['version']} - Schematalog</title>" in detail

@@ -1,5 +1,5 @@
 {% extends "app_base.html.jinja" %}
-{% block page_title %}Schema: {{ schema.name }} v{{ schema.version }}{% endblock %}
+{% block page_title %}{{ schema.name }} v{{ schema.version }}{% endblock %}
 
 {% block foot_extras %}
 {{ vite_asset("src/islands/clipboard.ts") }}

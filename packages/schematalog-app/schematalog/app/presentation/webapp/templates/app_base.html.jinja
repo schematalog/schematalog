@@ -1,5 +1,4 @@
-{# Tailwind v4 + DaisyUI base. New pages extend this; un-migrated pages still extend
-   the Pico-based `base.html.jinja` until they are ported (see ROADMAP.md). #}
+{# Tailwind v4 + DaisyUI base; every page extends this. #}
 <!DOCTYPE html>
 <html data-theme="light" lang="en">
 <head>
@@ -8,7 +7,14 @@
     <link rel="icon" href="/static/schematalog-icon.png">
     {{ vite_asset("src/styles/app.css") }}
     {% block head_extras %}{% endblock %}
-    <title>{% block site_title %}Schematalog{% endblock %} - {% block page_title %}Home{% endblock %}</title>
+    {# Page first, site last: a tab label truncates from the right, and the favicon
+       already says which app this is - so the leading words have to be the ones that
+       tell two tabs apart. A page with nothing to add (the home page) leaves the block
+       empty and the separator goes with it. Capturing the block into a variable is what
+       makes the separator conditional: rendering the block in place would commit to the
+       " - " before knowing whether anything precedes it. #}
+    {% set page %}{% block page_title %}{% endblock %}{% endset %}
+    <title>{% if page %}{{ page }} - {% endif %}Schematalog</title>
 </head>
 <body class="min-h-screen flex flex-col bg-base-100 text-base-content">
 
