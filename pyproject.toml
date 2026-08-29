@@ -23,7 +23,15 @@ tests = [
     "pytest-cov>=5.0.0",
     "pytest-spec>=3.2.0",
     "pytest-asyncio>=0.23.6",
-    "schemathesis>=4.20.1",
+    # Both of these arrived transitively through schemathesis until it was removed, and
+    # both are needed directly: hypothesis is imported by the property tests, and httpx
+    # is what `starlette.testclient` runs on, so without it the entire suite fails to
+    # collect. Declaring them is the point - while they were implicit, removing an
+    # unrelated package took them out with it. deptry cannot catch this class of thing
+    # here, because it excludes `tests/` by default and that is the only place they are
+    # used.
+    "hypothesis>=6.153",
+    "httpx>=0.27",
     "aiosqlite>=0.20.0",
     "moto>=5.2.3",
 ]
