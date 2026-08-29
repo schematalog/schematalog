@@ -29,7 +29,10 @@ dependencies = [
     "pygments>=2.20.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.1",
-    "schematalog-core",
+    # A floor, not a cap: the application calls `common.logging.redact`, which does
+    # not exist before this release, so an unbounded declaration would let a
+    # resolver satisfy it with a core that cannot serve it.
+    "schematalog-core>=0.1.1",
     "sqlalchemy[asyncio]>=2.0.0",
     "uvicorn[standard]>=0.30.0",
 ]
@@ -92,5 +95,8 @@ DEP002 = [
     # Declaring the namespace first-party is what lets deptry cope with several
     # distributions sharing `schematalog.*`; the cost is that it can no longer see which
     # distribution provides the modules being imported, so this looks unused.
-    "schematalog-core",
+    # A floor, not a cap: the application calls `common.logging.redact`, which does
+    # not exist before this release, so an unbounded declaration would let a
+    # resolver satisfy it with a core that cannot serve it.
+    "schematalog-core>=0.1.1",
 ]

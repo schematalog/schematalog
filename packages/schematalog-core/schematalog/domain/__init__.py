@@ -5,4 +5,4 @@ application's: the contract a backend codes against changes on its own schedule,
 backend pinning it should not be dragged along by a UI release.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
