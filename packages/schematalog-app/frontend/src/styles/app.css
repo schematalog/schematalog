@@ -14,3 +14,18 @@
    templates, emitted no utility classes, and the pages rendered unstyled while the
    build reported success. */
 @source "../../../schematalog/**/*.jinja";
+
+/* The `hidden` attribute has to beat a component class that sets `display`, and the
+   theme control is a DaisyUI `.dropdown`. Same specificity, so source order would
+   decide it - which is not something to leave to the plugin's output. */
+[hidden] {
+  display: none !important;
+}
+
+/* The theme button shows the theme you would be leaving behind is not the useful
+   reading - it shows the one you are in. Swapped in CSS rather than by the island, so
+   it is already right at first paint, when the island has not run yet. */
+[data-theme="dark"] .theme-when-light,
+[data-theme="light"] .theme-when-dark {
+  display: none;
+}

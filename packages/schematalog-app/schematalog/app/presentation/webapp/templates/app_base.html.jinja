@@ -1,11 +1,34 @@
 {# Tailwind v4 + DaisyUI base; every page extends this. #}
 {% import "_icons.html.jinja" as icon %}
 <!DOCTYPE html>
-<html data-theme="light" lang="en">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/static/schematalog-icon.png">
+    {# Resolve the theme before the first paint, or the page renders light and then
+       corrects itself in front of the reader. Inline and blocking for that reason: an
+       external script, even a synchronous one, is a network round trip too late. The
+       stored value is a *preference* ("auto" is stored as nothing at all); what lands
+       on the element is always a concrete "light" or "dark", which is what DaisyUI and
+       the generated code palette select on. Kept deliberately tiny - the island owns
+       every other part of this. #}
+    <script>
+        (function () {
+            var theme = "light";
+            try {
+                var stored = window.localStorage.getItem("schematalog-theme");
+                theme = stored === "light" || stored === "dark"
+                    ? stored
+                    : window.matchMedia("(prefers-color-scheme: dark)").matches
+                        ? "dark"
+                        : "light";
+            } catch (error) {
+                /* Blocked site data: fall back to light rather than failing to paint. */
+            }
+            document.documentElement.dataset.theme = theme;
+        })();
+    </script>
     {{ vite_asset("src/styles/app.css") }}
     {% block head_extras %}{% endblock %}
     {# Page first, site last: a tab label truncates from the right, and the favicon
@@ -26,7 +49,25 @@
                 <span class="text-xl font-semibold">Schematalog</span>
             </a>
         </div>
-        <nav class="flex-none flex items-center gap-3 text-sm">
+        <nav class="flex-none flex items-center gap-2 text-sm">
+            {# Hidden until the island reveals it: the control cannot work without
+               JavaScript, and a button that does nothing is worse than no button. #}
+            <div class="dropdown dropdown-end" data-theme-control hidden>
+                <div tabindex="0" role="button" class="btn btn-sm btn-ghost"
+                     aria-label="Colour theme">
+                    <span class="theme-when-light">{{ icon.sun() }}</span>
+                    <span class="theme-when-dark">{{ icon.moon() }}</span>
+                </div>
+                <ul tabindex="0" role="radiogroup" aria-label="Colour theme"
+                    class="dropdown-content menu bg-base-200 rounded-box z-10 mt-1 w-36 p-2 shadow">
+                    <li><button type="button" role="radio" aria-checked="false"
+                        data-theme-choice="auto">{{ icon.monitor() }}Auto</button></li>
+                    <li><button type="button" role="radio" aria-checked="false"
+                        data-theme-choice="light">{{ icon.sun() }}Light</button></li>
+                    <li><button type="button" role="radio" aria-checked="false"
+                        data-theme-choice="dark">{{ icon.moon() }}Dark</button></li>
+                </ul>
+            </div>
             <a class="btn btn-sm btn-primary" href="{{ url_for('schemas_publish') }}">Publish</a>
         </nav>
     </header>
@@ -55,6 +96,7 @@
         <span class="opacity-60">version {{ app_version }}{% if version_date %} {{ version_date }}{% endif %}</span>
     </footer>
 
+    {{ vite_asset("src/islands/theme.ts") }}
     {% block foot_extras %}{% endblock %}
 </body>
 </html>

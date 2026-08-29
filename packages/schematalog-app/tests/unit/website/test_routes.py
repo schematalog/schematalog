@@ -119,3 +119,14 @@ def test_every_new_tab_link_says_so(client, published):
     for path in ("/", "/schemas/", f"/schemas/{published['name']}"):
         page = client.get(path).text
         assert page.count('target="_blank"') == page.count("(opens in a new tab)"), path
+
+
+def test_the_page_does_not_pin_a_colour_theme(client):
+    """The theme is resolved per reader, so the markup must not decide it.
+
+    A `data-theme` baked into the template would win over both the stored preference
+    and the system setting, which is how this page was stuck in light mode.
+    """
+    html = client.get("/").text
+    assert 'data-theme="light"' not in html[: html.index("<head>")]
+    assert "schematalog-theme" in html[: html.index("</head>")], "no pre-paint resolution"

@@ -20,6 +20,7 @@ export default defineConfig({
         clipboard: resolve(__dirname, "src/islands/clipboard.ts"),
         editor: resolve(__dirname, "src/islands/editor.ts"),
         slugify: resolve(__dirname, "src/islands/slugify.ts"),
+        theme: resolve(__dirname, "src/islands/theme.ts"),
       },
     },
   },
