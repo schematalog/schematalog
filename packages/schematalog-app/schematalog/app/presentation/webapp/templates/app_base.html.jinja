@@ -44,8 +44,16 @@
 
     <header class="navbar bg-base-200 border-b border-base-300 px-4 gap-3">
         <div class="flex-1 flex items-center gap-3">
+            {# The mark is a single ink on transparency, so it needs one file per theme -
+               the dark one vanishes on a dark ground. Swapped in CSS rather than by the
+               island so it is already correct at first paint. Only one carries the alt
+               text; the other is decorative, or a screen reader would announce the name
+               twice. #}
             <a href="{{ url_for('homepage') }}" class="flex items-center gap-2">
-                <img width="36" height="36" src="/static/schematalog-icon.png" alt="Schematalog">
+                <img class="theme-when-light" width="36" height="36"
+                     src="/static/schematalog-icon.png" alt="Schematalog">
+                <img class="theme-when-dark" width="36" height="36"
+                     src="/static/schematalog-icon-white.png" alt="" aria-hidden="true">
                 <span class="text-xl font-semibold">Schematalog</span>
             </a>
         </div>
@@ -76,16 +84,19 @@
     {% block content %}{% endblock %}
     </main>
 
-    {# Everything the app serves about itself, in one place. Only the two off-site links
-       open a new tab: leaving the site is the case where losing your place costs
-       something, and a same-origin page is one Back press away. Each of those is marked
-       with the arrow icon and an announced note - see `_icons.new_tab_note`. #}
+    {# Everything the app serves about itself, in one place. All four open a new tab, and
+       each says so - the arrow icon for a sighted reader, `_icons.new_tab_note` for a
+       screen reader. Reference material is the case where a new tab is the right default
+       even for a same-origin page: you consult it *beside* what you were reading, and
+       coming back should not mean re-finding your place. #}
     <footer class="footer footer-center gap-2 border-t border-base-300 p-4 text-xs">
         <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             <a class="link link-hover inline-flex items-center gap-1.5"
-               href="{{ url_for('swagger_ui_html') }}">{{ icon.braces() }}API reference</a>
+               href="{{ url_for('swagger_ui_html') }}" target="_blank" rel="noopener">
+                {{ icon.braces() }}API reference{{ icon.external() }}{{ icon.new_tab_note() }}</a>
             <a class="link link-hover inline-flex items-center gap-1.5"
-               href="{{ url_for('openapi_yaml') }}">{{ icon.file() }}OpenAPI spec</a>
+               href="{{ url_for('openapi') }}" target="_blank" rel="noopener">
+                {{ icon.file() }}OpenAPI spec{{ icon.external() }}{{ icon.new_tab_note() }}</a>
             <a class="link link-hover inline-flex items-center gap-1.5"
                href="{{ docs_url }}" target="_blank" rel="noopener">
                 {{ icon.book() }}Read the Docs{{ icon.external() }}{{ icon.new_tab_note() }}</a>

@@ -107,7 +107,27 @@ def test_footer_links_to_the_documentation_and_the_source(client):
     assert buildinfo.DOCS_URL in footer
     assert buildinfo.REPOSITORY_URL in footer
     assert 'href="http://testserver/docs"' in footer
-    assert 'href="http://testserver/openapi.yaml"' in footer
+    assert 'href="http://testserver/openapi.json"' in footer
+
+
+def test_the_two_routes_to_the_api_reference_agree(client):
+    """One destination, named and behaving one way wherever it is offered.
+
+    The home page called it "API documentation" and the footer "API reference", and
+    only one of them opened a new tab.
+    """
+    home = client.get("/").text
+    assert "API documentation" not in home
+    assert home.count("API reference") == 2
+
+
+def test_the_header_logo_has_a_variant_for_each_theme(client):
+    """A single-ink mark on transparency disappears against its own background."""
+    header = client.get("/").text
+    assert 'class="theme-when-light" width="36"' in header
+    assert 'class="theme-when-dark" width="36"' in header
+    # Announced once: the second is the same name, and hearing it twice helps nobody.
+    assert header.count('alt="Schematalog"') == 1
 
 
 def test_every_new_tab_link_says_so(client, published):

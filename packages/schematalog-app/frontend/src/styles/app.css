@@ -22,10 +22,31 @@
   display: none !important;
 }
 
-/* The theme button shows the theme you would be leaving behind is not the useful
-   reading - it shows the one you are in. Swapped in CSS rather than by the island, so
-   it is already right at first paint, when the island has not run yet. */
-[data-theme="dark"] .theme-when-light,
-[data-theme="light"] .theme-when-dark {
+/* Show one of a light/dark pair - the header logo, the theme button's icon. In CSS
+   rather than in the island, so it is already right at first paint.
+
+   The default hides the dark half, because with no JavaScript nothing sets
+   `data-theme` and both halves would otherwise show at once. The media query then
+   covers that same unresolved case on a dark system, matching the selector the
+   component library uses for it. */
+.theme-when-dark {
   display: none;
+}
+
+[data-theme="dark"] .theme-when-dark {
+  display: revert;
+}
+
+[data-theme="dark"] .theme-when-light {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .theme-when-dark {
+    display: revert;
+  }
+
+  :root:not([data-theme]) .theme-when-light {
+    display: none;
+  }
 }
