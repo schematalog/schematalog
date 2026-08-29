@@ -173,3 +173,17 @@ def test_the_spec_describes_the_json_api_and_nothing_else(client):
     for operations in spec["paths"].values():
         for operation in operations.values():
             assert operation["tags"] == ["Schemas"]
+
+
+def test_the_mark_strokes_only_its_inner_rules(client):
+    """The surround is a filled shape, so stroking it draws a second, fatter outline.
+
+    It kept a `stroke-width` from the font it was converted out of, which drew nothing
+    until a stroke colour was inherited from above and then thickened it well past the
+    rules inside.
+    """
+    mark = client.get("/").text
+    mark = mark[mark.index('aria-label="Schematalog"') :]
+    mark = mark[: mark.index("</svg>")]
+    assert "stroke-width:9" not in mark, "the leftover font stroke width is back"
+    assert mark.count('stroke="currentColor"') == 1, "only the bars group is stroked"
