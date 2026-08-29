@@ -1,0 +1,37 @@
+# Read the Docs build.
+# https://docs.readthedocs.com/platform/stable/config-file/v2.html
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    # Matches `requires-python` rather than being the newest on offer: the install step
+    # below resolves the whole workspace, which pins `~=3.14.0`, so an older interpreter
+    # would fail to resolve rather than merely differ.
+    python: "3.14"
+
+mkdocs:
+  configuration: mkdocs.yml
+  # The same bar as every local build: `mkdocs build --strict`, so a link that stops
+  # resolving fails the build instead of shipping. This is the check that catches a page
+  # being moved or renamed, which is exactly what the last restructure did to 25 links.
+  fail_on_warning: true
+
+python:
+  install:
+    # The project already declares its documentation dependencies as a group, so the
+    # build reads that rather than a second requirements file that would drift from it.
+    #
+    # This installs more than the docs strictly need - the root sets
+    # `default-groups = "all"`, so the dev and test groups come along - which costs a
+    # little build time and nothing else. The alternative, a pinned requirements file
+    # listing only the generator, buys that time back by creating a second place to
+    # remember when a version changes.
+    #
+    # It does not need the frontend assets. They are force-included into the *sdist*
+    # only, and an editable install builds a wheel, so a checkout with no
+    # `static/dist` - which is what a fresh clone here is - resolves cleanly.
+    - method: uv
+      command: sync
+      groups:
+        - docs
