@@ -21,6 +21,11 @@ from schematalog.common.logging import get_logger
 from schematalog.common.models import FrozenModel
 from schematalog.common.validation import IncompatibleSchemaError, preprocess_schema
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
+
+# Re-exported, not used here: presentation validates a search query against this and
+# must not import from `domain` (see CLAUDE.md). The redundant alias is the convention
+# that marks a deliberate re-export rather than a stray import.
+from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
 from schematalog.domain.schema import (
     UNSET,
     JsonSchemaDocument,

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from schematalog.app.application.exceptions import DuplicateSchemaError, InvalidSchemaError
 from schematalog.app.application.schema import (
+    QUERY_PATTERN,
     GetSchemaCommand,
     ListLatestCommand,
     ListPredecessorsCommand,
@@ -78,12 +79,21 @@ async def schemas_list(
     for, and so the empty state can say which search found nothing rather than claiming
     the registry is empty.
     """
-    schemas = [
-        _template_schema(view, request)[0]
-        async for view in service.list_latest_schemas(ListLatestCommand(query=q))
-    ]
+    # The API answers an unusable query with 422; a browser gets a page instead, because
+    # an error document is the wrong response to someone mistyping in a search box.
+    valid = re.fullmatch(QUERY_PATTERN, q) is not None
+    schemas = (
+        [
+            _template_schema(view, request)[0]
+            async for view in service.list_latest_schemas(ListLatestCommand(query=q))
+        ]
+        if valid
+        else []
+    )
     return templates.TemplateResponse(
-        request, "schemas.html.jinja", {"schemas": schemas, "query": q}
+        request,
+        "schemas.html.jinja",
+        {"schemas": schemas, "query": q, "query_is_valid": valid},
     )
 
 

@@ -44,7 +44,16 @@
 <div class="py-16 text-center opacity-70">
     {# Distinguish "your search found nothing" from "there is nothing here" - the same
        empty page otherwise tells a first-time visitor the registry is broken. #}
-    {% if query %}
+    {% if not query_is_valid %}
+    <p class="text-lg">That is not something a schema name could contain.</p>
+    <p class="mt-2 text-sm">
+        Names use letters, digits, <code>.</code>, <code>-</code> and <code>_</code>,
+        so a search containing anything else - a space, say - cannot match.
+    </p>
+    <p class="mt-2 text-sm">
+        <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>
+    </p>
+    {% elif query %}
     <p class="text-lg">No schema name contains &ldquo;{{ query }}&rdquo;.</p>
     <p class="mt-2 text-sm">
         <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>

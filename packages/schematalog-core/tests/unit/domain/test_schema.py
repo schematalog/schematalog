@@ -1,9 +1,13 @@
 """Direct unit tests for the value objects and Schema wire-format gymnastics."""
 
+import re
+
 from pydantic import ValidationError
 import pytest
 
 from schematalog.domain.schema import (
+    NAME_PATTERN,
+    QUERY_PATTERN,
     JsonSchemaDocument,
     Schema,
     SchemaDescription,
@@ -239,3 +243,19 @@ def test_with_metadata_sets_clears_and_leaves_successor():
     assert with_succ.successor == ref
     assert with_succ.with_metadata(successor=None).successor is None  # explicit clear
     assert with_succ.with_metadata(deprecated=True).successor == ref  # UNSET leaves it
+
+
+@pytest.mark.parametrize(
+    "character", [chr(c) for c in range(32, 127)] + ["é", "\x00", "\ud800"]
+)
+def test_query_pattern_admits_exactly_what_a_name_admits(character):
+    """The two patterns must not drift apart.
+
+    A query is matched against names, so any character a name can hold must be
+    searchable and any character it cannot must be rejected. They are written
+    separately - one has an anchored first character, the other allows surrounding
+    whitespace - so nothing but this keeps them in step.
+    """
+    in_a_name = re.fullmatch(NAME_PATTERN, f"a{character}") is not None
+    in_a_query = re.fullmatch(QUERY_PATTERN, character) is not None
+    assert in_a_name == in_a_query or character.isspace()

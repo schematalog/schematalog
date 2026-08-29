@@ -10,6 +10,8 @@ from datetime import UTC
 from sqlalchemy import JSON, DateTime, String, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
+from schematalog.domain.schema import MAX_IDENTIFIER_LENGTH
+
 # JSONB on PostgreSQL (indexable, typed), plain JSON everywhere else (e.g. SQLite).
 AdaptiveJSONColumn = JSON().with_variant(JSONB(), "postgresql")
 
@@ -31,7 +33,9 @@ AdaptiveJSONColumn = JSON().with_variant(JSONB(), "postgresql")
 # `publication_id`, and the version string is never compared (see DECISIONS.md). The
 # collation is therefore no longer load-bearing for correctness, only for listings
 # looking the same everywhere.
-IdentifierColumn = String(256).with_variant(String(256, collation="C"), "postgresql")
+IdentifierColumn = String(MAX_IDENTIFIER_LENGTH).with_variant(
+    String(MAX_IDENTIFIER_LENGTH, collation="C"), "postgresql"
+)
 
 
 class TimezoneAwareDateTime(TypeDecorator):

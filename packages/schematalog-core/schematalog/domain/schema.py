@@ -29,8 +29,19 @@ _PUBLICATION_TIMESTAMP_SHIFT = 80
 # Names and versions: an alphanumeric followed by alphanumerics, dashes, dots, underscores.
 NAME_PATTERN = r"^[0-9a-zA-Z][0-9a-zA-Z-_\.]*$"
 
-SchemaName = Annotated[str, Field(pattern=NAME_PATTERN)]
-SchemaVersion = Annotated[str, Field(pattern=NAME_PATTERN)]
+MAX_IDENTIFIER_LENGTH = 256
+"""How long a name or a version may be.
+
+The domain owns this rather than the database, because otherwise only *some* stores
+enforce it: the SQL backend's column is `VARCHAR(256)`, which PostgreSQL enforces and
+SQLite ignores entirely, while the in-memory and filesystem backends have no opinion at
+all. Unbounded here, a 300-character name was accepted by three backends and answered
+with a 500 by the fourth - one request, two outcomes, decided by the operator's choice
+of store.
+"""
+
+SchemaName = Annotated[str, Field(pattern=NAME_PATTERN, max_length=MAX_IDENTIFIER_LENGTH)]
+SchemaVersion = Annotated[str, Field(pattern=NAME_PATTERN, max_length=MAX_IDENTIFIER_LENGTH)]
 
 
 class _UnsetType(Enum):
@@ -367,6 +378,32 @@ def normalise_query(query: str | None) -> str | None:
     return normalised or None
 
 
+QUERY_PATTERN = r"^\s*[0-9a-zA-Z\-_.]*\s*$"
+"""The characters a search query may contain: exactly those `NAME_PATTERN` allows,
+plus whitespace around the edges.
+
+Surrounding whitespace is a typing artifact and is trimmed, so `"  order  "` searches
+for `order` and `"   "` is an empty search. Whitespace *inside* a query is a character
+like any other, and no name contains one, so `"bill ing"` is rejected rather than
+silently returning nothing.
+
+Search matches against names, so a query holding a character no name can hold cannot
+match anything - and rather than answering that with an empty result, the boundary
+rejects it, which says *why* nothing was found instead of leaving a caller to guess.
+
+Validating above storage is what makes the rule uniform. Python permits strings no
+database can hold - a NUL is not valid in PostgreSQL `text`, a lone surrogate is not
+encodable as UTF-8 - and passing either to a driver raises where the in-Python backends
+quietly return nothing. That is one call answering two ways depending on the operator's
+choice of store, which is the divergence the whole search guarantee exists to rule out.
+Rejected at the boundary, no backend ever sees one.
+
+**This is a rule about searching *names*.** When matching grows to cover the
+description, which is free text, a query containing a space or an accent becomes
+perfectly meaningful and this constraint has to widen with it.
+"""
+
+
 def matches_query(schema: Schema, query: str | None) -> bool:
     """Whether `schema` satisfies the search guarantee for `query`.
 
@@ -402,6 +439,12 @@ class SchemaRepository(ABC):
     Ordering is never derived from the version string - the registry does not interpret it
     (see `DECISIONS.md`). Everything orders by `publication_id`, whose byte order is
     publication order, so a backend must store it in a form that preserves that ordering.
+
+    Searching is defined by its guarantee rather than its mechanism: a backend may answer
+    a query faster than the default here, never differently. A query reaching a
+    repository has already been validated against `QUERY_PATTERN` by the layer above, so
+    it holds only characters a name may hold - which is what keeps a driver from ever
+    being handed something it cannot bind.
     """
 
     @abstractmethod

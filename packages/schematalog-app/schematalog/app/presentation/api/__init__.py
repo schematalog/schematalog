@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from schematalog.app.application.schema import (
+    QUERY_PATTERN,
     GetSchemaCommand,
     ListLatestCommand,
     ListPredecessorsCommand,
@@ -56,11 +57,15 @@ async def get_schemas(
     q: Annotated[
         str | None,
         Query(
+            pattern=QUERY_PATTERN,
             description=(
                 "Narrow the listing to schemas whose name contains this, ignoring case. "
                 "Matching is a plain substring: it does not stem, spell-correct or rank, "
-                "and results keep their name order whether or not a query is given."
-            )
+                "and results keep their name order whether or not a query is given. "
+                "Only the characters a schema name may contain are accepted; anything "
+                "else could not match and is rejected rather than answered with an "
+                "empty result."
+            ),
         ),
     ] = None,
 ) -> SchemaListResponse:

@@ -215,3 +215,14 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
     assert "No schemas yet" not in page
     assert "nothing-matches-this" in page
     assert "Show every schema" in page
+
+
+def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, example_schema):
+    """A browser gets a page; an error document is the wrong answer to a typo."""
+    client.post("/api/schemas", json=example_schema)
+
+    response = client.get("/schemas/", params={"q": "two words"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert "not something a schema name could contain" in response.text
+    assert example_schema["name"] not in response.text
