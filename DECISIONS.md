@@ -27,13 +27,21 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
-## 2026-08-29: What waits for 2.0, and why it is a decision rather than a gap
+## 2026-08-29: What waits for 1.0, and why it is a decision rather than a gap
 
 **Decided.** Three things that a mature project would have, and this one deliberately
 does not yet: a **changelog**, **versioned documentation**, and **release automation**.
-All three wait for 2.0, which is when the project opens to users. Each is recorded here
+All three wait for 1.0, which is when the project opens to users. Each is recorded here
 together because they share one reason and would otherwise read, separately, as three
 oversights.
+
+**The milestone is 1.0, not 2.0.** Both numbers appear in earlier notes: "2.0" was
+vocabulary from before the restart, when the application was at 1.7 and the next era
+would have been 2.0. Restarting at 0.1.0 orphaned it - the minor tracks the roadmap
+phase, so the sequence runs 0.1 to 0.5 and has no route to a 2 - and the 2026-08-22
+entry had already given 1.0 its meaning: when the phases that define the product are
+done. That is the same moment as "opens to users", because a project opens to users when
+it starts making promises, which is exactly what leaving ZeroVer says.
 
 **The shared reason is that each is a permanent commitment made on behalf of users who
 do not exist.** A published documentation version is a URL that must keep resolving; a
@@ -84,7 +92,7 @@ lower bound - a floor, still never `==`, which leaves intact the reason the
 still leaves users with the current application rather than a stale one. And the
 equality between the meta-package's version and the application's is now checked in CI
 (`scripts/check_versions.py`). That entry deferred the check to the publishing workflow
-on the understanding that the workflow was near; with it now deferred to 2.0, the rule
+on the understanding that the workflow was near; with it now deferred to 1.0, the rule
 would otherwise go unenforced across every release in between, held by nothing but a
 paragraph.
 

@@ -428,9 +428,13 @@ site it was waiting on.
 - **How a catalog's membership is addressed.** Schemas keep their own short path, so
   what needs settling is the shape of the catalog side: listing members, and adding or
   removing one. Worth a moment's thought before it is a public contract.
-- **What 2.0 means now.** It previously meant "open to users". The natural new meaning
-  is "the repos are public and the API is stable", but the version at which that lands
-  is unforced.
+- ~~**What 2.0 means now.**~~ Answered: it is **1.0**, not 2.0. "2.0" was vocabulary
+  from before the restart, when the application was at 1.7 and the next era would have
+  been 2.0; after restarting at 0.1.0 it pointed at nothing, since the phase scheme runs
+  0.1 through 0.5 and has no route to a 2. The milestone itself is unchanged - the API
+  is stable and the project starts making promises - and it now coincides with what
+  leaving ZeroVer already means. Half of its old definition, the repositories being
+  public, has happened.
 
 ## Parked / future
 
