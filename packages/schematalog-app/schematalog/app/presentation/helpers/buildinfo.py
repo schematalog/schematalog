@@ -25,7 +25,7 @@ a release. It would also have to find a home other than `/docs`, which is alread
 the generated OpenAPI reference.
 """
 
-REPOSITORY_URL = "https://github.com/berislavlopac/schematalog"
+REPOSITORY_URL = "https://github.com/schematalog/schematalog"
 """The source repository, linked from the footer."""
 
 

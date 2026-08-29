@@ -47,7 +47,7 @@ DEP002 = ["schematalog-core"]
 [project.urls]
 Homepage = "https://schematalog.com"
 Documentation = "https://schematalog.com"
-Source = "https://github.com/berislavlopac/schematalog"
+Source = "https://github.com/schematalog/schematalog"
 
 [build-system]
 requires = ["hatchling"]

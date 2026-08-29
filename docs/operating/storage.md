@@ -67,7 +67,7 @@ What it does **not** do is commit for you. Schematalog writes files; committing 
 yours - by hand, or on a timer. Pulling changes made elsewhere is likewise outside its
 knowledge, and two writers are no safer here than anywhere else on this backend. A
 tighter integration, where the registry authors commits and tags, is [on the
-roadmap](https://github.com/berislavlopac/schematalog) but does not exist.
+roadmap](https://github.com/schematalog/schematalog) but does not exist.
 
 ### Object storage
 

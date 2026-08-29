@@ -1,7 +1,7 @@
 site_name: Schematalog
 site_description: A registry/catalog for JSON Schema specifications.
 site_author: Berislav Lopac <berislav@lopac.net>
-repo_url: https://github.com/berislavlopac/schematalog
+repo_url: https://github.com/schematalog/schematalog
 site_url: https://schematalog.com
 use_directory_urls: false
 
