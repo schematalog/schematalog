@@ -1,4 +1,7 @@
-site_name: Schematalog
+# Names the site, and every page's tab, as "<page> - Schematalog Documentation". The
+# bare name would be indistinguishable from the running application, which titles its
+# own pages "<page> - Schematalog" - and the two are most often open side by side.
+site_name: Schematalog Documentation
 site_description: A registry/catalog for JSON Schema specifications.
 site_author: Berislav Lopac <berislav@lopac.net>
 repo_url: https://github.com/schematalog/schematalog
