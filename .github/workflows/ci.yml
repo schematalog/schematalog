@@ -36,6 +36,12 @@ jobs:
 
       - run: uv sync --all-groups --locked
       - run: just install-fe
+      # The meta-package's version has to equal the application's, and nothing in the
+      # packaging enforces it - the two are written in different files and neither build
+      # reads the other. Here rather than in `just check` because it is a release-time
+      # invariant, and here rather than waiting for the publishing workflow because that
+      # is deferred to 2.0 and the rule would otherwise go unenforced until then.
+      - run: uv run python scripts/check_versions.py
       # Lint, dependency, safety and type checks across Python and the frontend, then
       # every package's unit tests with the coverage floor.
       - run: just ready

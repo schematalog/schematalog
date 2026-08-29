@@ -18,7 +18,11 @@ classifiers = [
 # means. This distribution ships no modules of its own - see README.md for why it exists
 # at all.
 dependencies = [
-    "schematalog-app",
+    # A floor, never `==`: see DECISIONS.md for why an exact pin is the one form that
+    # can go wrong quietly. This says only what lockstep already promises - that this
+    # release of the front door corresponds to at least that release of the registry -
+    # so a resolver cannot satisfy it with an application older than the number here.
+    "schematalog-app>=0.1.0",
 ]
 
 [project.urls]
