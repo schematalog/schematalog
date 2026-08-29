@@ -1549,7 +1549,7 @@ tests = [
     { name = "pytest-asyncio", specifier = ">=0.23.6" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
     { name = "pytest-spec", specifier = ">=3.2.0" },
-    { name = "schemathesis", specifier = ">=3.27.0" },
+    { name = "schemathesis", specifier = ">=4.20.1" },
 ]
 
 [[package]]
