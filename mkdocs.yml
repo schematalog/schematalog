@@ -13,10 +13,11 @@ validation:
 
 theme:
   name: materialx
-  # The project's own mark rather than a stock glyph. The white variant, because the
-  # header sits on the palette's primary colour in both schemes; the favicon is the
-  # dark one, which is what a browser's own light chrome wants.
-  logo: assets/logo.png
+  # The project's own mark rather than a stock glyph. The header logo is white-inked,
+  # because the header sits on the palette's primary colour in both schemes; the favicon
+  # is a PNG, since this theme's `favicon` goes straight into a `<link rel="icon">` with
+  # no type, and browsers are happier guessing about a raster.
+  logo: assets/logo.svg
   favicon: assets/favicon.png
   features:
     - navigation.instant

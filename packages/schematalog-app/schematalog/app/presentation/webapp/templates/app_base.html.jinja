@@ -5,7 +5,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/schematalog-icon.png">
+    {# An SVG favicon carries its own `prefers-color-scheme` rule, so the mark flips with
+       the browser chrome instead of vanishing into it - and being a square document, it
+       is not squashed into the square slot the way the 372x306 PNG was. The touch icon
+       is separate and opaque: it lands on a home screen over unknown wallpaper, where
+       transparency reads as a hole. #}
+    <link rel="icon" href="/static/schematalog-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     {# Resolve the theme before the first paint, or the page renders light and then
        corrects itself in front of the reader. Inline and blocking for that reason: an
        external script, even a synchronous one, is a network round trip too late. The
@@ -44,16 +50,8 @@
 
     <header class="navbar bg-base-200 border-b border-base-300 px-4 gap-3">
         <div class="flex-1 flex items-center gap-3">
-            {# The mark is a single ink on transparency, so it needs one file per theme -
-               the dark one vanishes on a dark ground. Swapped in CSS rather than by the
-               island so it is already correct at first paint. Only one carries the alt
-               text; the other is decorative, or a screen reader would announce the name
-               twice. #}
             <a href="{{ url_for('homepage') }}" class="flex items-center gap-2">
-                <img class="theme-when-light" width="36" height="36"
-                     src="/static/schematalog-icon.png" alt="Schematalog">
-                <img class="theme-when-dark" width="36" height="36"
-                     src="/static/schematalog-icon-white.png" alt="" aria-hidden="true">
+                {{ icon.mark() }}
                 <span class="text-xl font-semibold">Schematalog</span>
             </a>
         </div>

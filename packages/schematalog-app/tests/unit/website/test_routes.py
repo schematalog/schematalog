@@ -121,13 +121,22 @@ def test_the_two_routes_to_the_api_reference_agree(client):
     assert home.count("API reference") == 2
 
 
-def test_the_header_logo_has_a_variant_for_each_theme(client):
-    """A single-ink mark on transparency disappears against its own background."""
+def test_the_header_mark_takes_the_page_colour(client):
+    """Inlined, not linked, so it cannot disagree with the theme the reader chose.
+
+    A linked SVG resolves `prefers-color-scheme` against the operating system, which
+    is a different question from which theme this page is showing.
+    """
     header = client.get("/").text
-    assert 'class="theme-when-light" width="36"' in header
-    assert 'class="theme-when-dark" width="36"' in header
-    # Announced once: the second is the same name, and hearing it twice helps nobody.
-    assert header.count('alt="Schematalog"') == 1
+    assert 'fill="currentColor"' in header
+    assert 'aria-label="Schematalog"' in header
+
+
+def test_the_favicon_is_a_square_vector_with_a_touch_icon_beside_it(client):
+    """The PNG it replaces was 372x306, so every square favicon slot squashed it."""
+    head = client.get("/").text
+    assert '<link rel="icon" href="/static/schematalog-icon.svg" type="image/svg+xml">' in head
+    assert '<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">' in head
 
 
 def test_every_new_tab_link_says_so(client, published):
