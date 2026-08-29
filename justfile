@@ -82,7 +82,7 @@ safety:
 check: lint safety type
 
 # Run checks and unit tests.
-ready: lint safety type test
+ready: check test
 
 
 # --- Compose (local service stack) ---
