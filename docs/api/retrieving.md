@@ -35,7 +35,24 @@ because these are the things a search box usually implies:
 - it does not yet search descriptions or the schema document itself.
 
 A blank or missing `q` selects everything, so an empty search box behaves as no search
-rather than as a search for nothing.
+rather than as a search for nothing. Whitespace around a query is trimmed, so
+`?q=%20order%20` searches for `order`.
+
+### What a query may contain
+
+A query may hold only the characters a schema **name** may hold - letters, digits,
+`.`, `-` and `_`. Anything else could not match any name, and is answered with
+`422 Unprocessable Entity` rather than with an empty list:
+
+```shell
+curl -i "https://schematalog.com/api/schemas?q=two%20words"   # 422
+```
+
+That is deliberate. An empty result would be indistinguishable from a search that
+simply found nothing, leaving you to work out which had happened. It also keeps the
+rule uniform across backends: some strings a URL can carry cannot be stored in a
+database at all - a NUL byte is not valid in PostgreSQL text - and left unchecked the
+same request answered `200 []` on one backend and failed on another.
 
 That narrowness is deliberate. The same query runs against whichever storage backend an
 instance is configured with, and each is free to answer it however it can answer it
