@@ -16,6 +16,33 @@ URL is directly usable as a `$ref` target.
 
 Reads are open: everything in an instance is readable, by anyone.
 
+## Searching
+
+`GET /api/schemas` accepts a `q` parameter that narrows the listing to schemas whose
+**name** contains it, ignoring case:
+
+```shell
+curl "https://schematalog.com/api/schemas?q=billing"
+```
+
+It is a plain substring match on the name. Being explicit about what it does *not* do,
+because these are the things a search box usually implies:
+
+- it does not stem, so `orders` does not find `order`;
+- it does not correct spelling or match approximately;
+- it does not rank. Results keep the same name-ascending order they have without a
+  query, so a result's position tells you nothing about how well it matched;
+- it does not yet search descriptions or the schema document itself.
+
+A blank or missing `q` selects everything, so an empty search box behaves as no search
+rather than as a search for nothing.
+
+That narrowness is deliberate. The same query runs against whichever storage backend an
+instance is configured with, and each is free to answer it however it can answer it
+fastest - so the promise is kept small enough that every backend can keep it *exactly*.
+A backend may be quicker; it may not be different. The published conformance suite
+tests this, which is why a backend cannot quietly turn on stemming.
+
 ## Canonical `$id`
 
 When a version is served, Schematalog stamps the document with a canonical `$id`

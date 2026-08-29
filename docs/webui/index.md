@@ -8,7 +8,11 @@ project.
 
 What it offers:
 
-- **The catalog** (`/schemas/`) - every schema name with its latest version.
+- **The catalog** (`/schemas/`) - every schema name with its latest version, with a
+  search box that narrows it by name. It is an ordinary form: the query goes into the
+  URL, so a search can be linked or bookmarked, and it works with JavaScript turned off.
+  It matches exactly what [the API's `q` parameter](../api/retrieving.md#searching)
+  matches, being the same call.
 - **A schema's page** (`/schemas/{name}`) - the document, its description, its
   properties, and a version picker. Deprecated versions are badged, and a version
   with a successor links to it. Code blocks are highlighted server-side and have a
