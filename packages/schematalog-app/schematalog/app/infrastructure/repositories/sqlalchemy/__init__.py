@@ -30,7 +30,7 @@ from schematalog.domain.schema import (
 from . import tables
 
 
-def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
+def _build_latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
     """The ORDER BY implementing the `get_latest` contract, newest-current-first.
 
     Takes the table or alias to read from, so the same expression serves both the direct
@@ -49,7 +49,7 @@ def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
 _LIKE_ESCAPE = "\\"
 
 
-def _term_clauses(query: SearchQuery) -> list[sa.ColumnElement[bool]]:
+def _build_term_clauses(query: SearchQuery) -> list[sa.ColumnElement[bool]]:
     """One clause per term, each requiring it in the name or the description.
 
     ANDed by `where`, so every term must be found but not all in the same field. The
@@ -67,11 +67,11 @@ def _term_clauses(query: SearchQuery) -> list[sa.ColumnElement[bool]]:
                 pattern, escape=_LIKE_ESCAPE
             ),
         )
-        for pattern in (_like_contains(term) for term in query.terms)
+        for pattern in (_build_contains_pattern(term) for term in query.terms)
     ]
 
 
-def _like_contains(query: str) -> str:
+def _build_contains_pattern(query: str) -> str:
     """A `LIKE` pattern matching `query` anywhere in a value, wildcards defanged.
 
     `%` and `_` are wildcards to `LIKE`, and both are legal in a schema name - so a
@@ -174,7 +174,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         stmt = (
             sa.select(tables.schema)
             .where(tables.schema.c.name == schema_name)
-            .order_by(*_latest_order(tables.schema))
+            .order_by(*_build_latest_order(tables.schema))
             .limit(1)
         )
         async with self.engine.connect() as conn:
@@ -201,7 +201,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         latest_publication = (
             sa.select(inner.c.publication_id)
             .where(inner.c.name == tables.schema.c.name)
-            .order_by(*_latest_order(inner))
+            .order_by(*_build_latest_order(inner))
             .limit(1)
             .scalar_subquery()
         )
@@ -211,7 +211,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             .order_by(tables.schema.c.name.asc())
         )
         if query is not None:
-            stmt = stmt.where(*_term_clauses(query))
+            stmt = stmt.where(*_build_term_clauses(query))
         async with self.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         for row in rows:

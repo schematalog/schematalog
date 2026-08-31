@@ -40,7 +40,7 @@ def app_version() -> str:
     return __version__
 
 
-def _git(*args: str) -> str | None:
+def _run_git(*args: str) -> str | None:
     """Run a read-only git command in the source tree, or `None` if unavailable."""
     git = shutil.which("git")
     if git is None:
@@ -60,9 +60,13 @@ def _git(*args: str) -> str | None:
 
 def commit() -> str:
     """The running commit's short SHA, or `unknown` if it can't be determined."""
-    return os.environ.get("GIT_COMMIT") or _git("rev-parse", "--short", "HEAD") or "unknown"
+    return os.environ.get("GIT_COMMIT") or _run_git("rev-parse", "--short", "HEAD") or "unknown"
 
 
 def commit_date() -> str:
     """The running commit's date (`YYYY-MM-DD`), or empty if it can't be determined."""
-    return os.environ.get("GIT_COMMIT_DATE") or _git("show", "-s", "--format=%cs", "HEAD") or ""
+    return (
+        os.environ.get("GIT_COMMIT_DATE")
+        or _run_git("show", "-s", "--format=%cs", "HEAD")
+        or ""
+    )

@@ -43,7 +43,7 @@ IdentifierColumn = String(MAX_IDENTIFIER_LENGTH).with_variant(
 # non-ASCII characters *to* ASCII - `lower('KELVIN SIGN')` is `k` - so a pure-ASCII
 # query matched a description on PostgreSQL that it matched nowhere else. Under `C`
 # it lowercases ASCII and nothing more, which is exactly what SQLite's `lower()` and
-# the domain's own `fold` do. Names need no such treatment: `IdentifierColumn` above
+# the domain's own `to_lowercase_ascii` do. Names need no such treatment: `IdentifierColumn` above
 # is already `C`-collated, for ordering.
 DescriptionColumn = Text().with_variant(Text(collation="C"), "postgresql")
 

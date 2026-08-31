@@ -20,7 +20,7 @@ from schematalog.app.application.exceptions import (
 )
 from schematalog.common.logging import get_logger
 from schematalog.common.models import FrozenModel
-from schematalog.common.validation import IncompatibleSchemaError, preprocess_schema
+from schematalog.common.validation import IncompatibleSchemaError, normalise_for_publication
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
 
 # Re-exported for presentation, which must not import from `domain`.
@@ -166,7 +166,7 @@ class SchemaService:
             DuplicateSchemaError: If this name/version already exists.
         """
         try:
-            document = preprocess_schema(command.json_schema)
+            document = normalise_for_publication(command.json_schema)
         except IncompatibleSchemaError as exc:
             raise InvalidSchemaError from exc
         try:

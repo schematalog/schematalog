@@ -40,7 +40,7 @@ from .templates import templates
 router = APIRouter(include_in_schema=False)
 
 
-def _template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any], str]:
+def _build_template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any], str]:
     """Project a `SchemaView` onto the flat dict the templates read, plus its `$id` URL.
 
     Mirrors the old wire form (None fields omitted, so unguarded `{{ schema.x }}`
@@ -91,7 +91,7 @@ async def schemas_list(
         if len(q) > settings.MAX_QUERY_LENGTH:
             raise InvalidSearchQueryError  # noqa: TRY301
         schemas = [
-            _template_schema(view, request)[0]
+            _build_template_schema(view, request)[0]
             async for view in service.list_latest_schemas(ListLatestCommand(query=q))
         ]
     except InvalidSearchQueryError:
@@ -119,7 +119,7 @@ async def schemas_detail(
 ):
     """Retrieve a version of a schema (the latest if none is selected)."""
     view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version or None))
-    serialized, url = _template_schema(view, request)
+    serialized, url = _build_template_schema(view, request)
     all_versions = [
         v.version
         async for v in service.list_schema_versions(ListVersionsCommand(name=schema_name))
@@ -178,7 +178,7 @@ _STARTER_DOCUMENT = json.dumps(
 )
 
 
-def _publish_response(
+def _render_publish_response(
     request: Request,
     fields: dict[str, str],
     error: str | None = None,
@@ -244,7 +244,7 @@ async def schemas_publish(
     republishing the same one is always a conflict. Otherwise it opens blank.
     """
     if not name:
-        return _publish_response(
+        return _render_publish_response(
             request,
             {
                 "name": "",
@@ -254,7 +254,7 @@ async def schemas_publish(
             },
         )
     view = await service.get_schema(GetSchemaCommand(name=name, version=version or None))
-    return _publish_response(
+    return _render_publish_response(
         request,
         {
             "name": view.name,
@@ -321,14 +321,14 @@ async def schemas_publish_submit(
     }
     command, error = _build_publish_command(fields)
     if command is None:
-        return _publish_response(request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY)
+        return _render_publish_response(request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY)
     try:
         view = await service.publish_schema(command)
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
         # field breaking a domain constraint. The exact cap lives in the domain, which
         # presentation cannot import, so the wording spans the two rather than quoting it.
-        return _publish_response(
+        return _render_publish_response(
             request,
             fields,
             "The document does not conform to any supported JSON Schema metaschema, "
@@ -336,7 +336,7 @@ async def schemas_publish_submit(
             HTTPStatus.UNPROCESSABLE_ENTITY,
         )
     except DuplicateSchemaError:
-        return _publish_response(
+        return _render_publish_response(
             request,
             fields,
             f"Version '{fields['version']}' of '{fields['name']}' already exists.",

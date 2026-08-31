@@ -73,7 +73,7 @@ def test_author_controlled_values_are_escaped(prop, expected):
 def test_hostile_substrings_are_escaped_without_relying_on_validation():
     """`prop_type` output is rendered unescaped, so it must escape everything itself.
 
-    These shapes cannot reach storage today (`preprocess_schema` constrains `type` to
+    These shapes cannot reach storage today (`normalise_for_publication` constrains `type` to
     the metaschema's enum), which is exactly why this is pinned here: the guarantee
     must not quietly become dependent on validation happening somewhere else.
     """
