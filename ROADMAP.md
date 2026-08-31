@@ -145,15 +145,25 @@ they are mutable per-schema metadata, the family `set_metadata` already carries.
      the part a third party most needs warning about. Moved here from phase 5's
      documentation bullet: an extension point nobody has instructions for is not finished.
 - **Search.** The most-missed capability: today a catalog with hundreds of schemas
-  offers one alphabetical list and nothing else. **Fully decided** (see `DECISIONS.md`)
-  and next up. A capability with a default implementation rather than a sixth required
-  repository method - the base class scans, a backend overrides when its store can answer
-  better - so it works everywhere from the first release. Defined by its guarantee
-  (case-insensitive substring matching, name-ascending) rather than by its mechanism, so
-  a better engine may only be faster and never different, and the conformance suite says
-  so. Filtered, never ranked. Query parameters on `/api/schemas`, not a new resource.
-  Name first, then description, then document content with property names above all.
-  **Pagination is settled with it**, since search is what makes large results likely.
+  offers one alphabetical list and nothing else. A capability with a default
+  implementation rather than a sixth required repository method - the base class scans, a
+  backend overrides when its store can answer better - so it works everywhere from the
+  first release. Defined by its guarantee (case-insensitive substring matching,
+  name-ascending) rather than by its mechanism, so a better engine may only be faster and
+  never different, and the conformance suite says so. Filtered, never ranked. Query
+  parameters on `/api/schemas`, not a new resource.
+
+  **Name and description are done (2026-08-31)**: one `q` parameter, every word of a
+  query required in one field or the other, no syntax of any kind (see `DECISIONS.md` for
+  why that rule is what keeps a query language from growing). Two pieces remain.
+  **Searching the document itself** - property names above all - which the decision says
+  should be its own parameter rather than folded into `q`, since an unranked union would
+  swamp the other two. And **pagination**, still to be settled with search, since search
+  is what makes large results likely.
+
+  Also left open by the ASCII-only alphabet: matching a non-ASCII query needs backends to
+  match against an application-written folded column rather than folding as they query,
+  because no two stores lower-case alike. Worth doing when someone needs it.
 - **Labels or annotations on a schema.** Free-form tags, a fixed category hierarchy,
   or arbitrary annotations - scope still open, including whether free-form labels need
   any constraint to stop them drifting (`payments`, `payment`, `Payments`). Cheap by

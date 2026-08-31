@@ -277,6 +277,10 @@ def test_query_pattern_admits_exactly_what_a_name_admits(character):
     assert in_a_name == in_a_query or character.isspace()
 
 
+def test_search_query_splits_on_whitespace_into_terms():
+    assert SearchQuery(text="billing invoice").terms == ("billing", "invoice")
+
+
 def test_search_query_normalises_so_equality_agrees_with_matching():
     """Two queries that always return the same rows are the same query.
 
@@ -284,6 +288,8 @@ def test_search_query_normalises_so_equality_agrees_with_matching():
     query is a value: nothing distinguishes two searches for the same thing.
     """
     assert SearchQuery(text="  Order  ") == SearchQuery(text="order")
+    # Repeats and runs of whitespace change nothing about which schemas match.
+    assert SearchQuery(text="a  b") == SearchQuery(text="a b") == SearchQuery(text="a b a")
 
 
 def test_search_query_parse_reads_every_blank_spelling_as_no_query():
@@ -313,13 +319,14 @@ def test_search_query_accepts_text_at_the_cap():
     assert SearchQuery(text="x" * MAX_QUERY_LENGTH).text == "x" * MAX_QUERY_LENGTH
 
 
-@pytest.mark.parametrize("query", ["bill ing", "order!", "\x00", "\ud800"])
-def test_search_query_refuses_what_no_name_could_hold(query):
+@pytest.mark.parametrize("query", ["order!", "ordér", "\x00", "\ud800"])
+def test_search_query_refuses_what_it_cannot_search_for(query):
     """Rejected rather than answered with an empty result.
 
     An empty result would read as "nothing found" for what is really "that cannot be
     searched for", and a character no database can bind would otherwise raise on one
-    backend and quietly return nothing on another.
+    backend and quietly return nothing on another. Non-ASCII is refused because no two
+    stores fold its case alike, not because it is meaningless.
     """
     with pytest.raises(ValidationError):
         SearchQuery(text=query)

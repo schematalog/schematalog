@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable, Mapping
 from datetime import UTC, datetime
 from enum import Enum, auto
+from string import ascii_lowercase, ascii_uppercase
 from typing import Annotated, Any, Final, Literal
 from urllib.parse import urlparse
 import uuid
@@ -389,18 +390,12 @@ no real search approaches it - so it is set at the generous end, where being wro
 costs nothing, rather than the tight end, where being wrong rejects a legitimate search.
 """
 
-QUERY_PATTERN = r"^\s*[0-9a-zA-Z\-_.]*\s*$"
-"""The characters a search query may contain: exactly those `NAME_PATTERN` allows,
-plus whitespace around the edges.
+QUERY_PATTERN = r"^[0-9a-zA-Z\-_.\s]*$"
+"""The characters a search query may contain: those `NAME_PATTERN` allows, plus
+whitespace, which separates one term from the next.
 
-Surrounding whitespace is a typing artifact and is trimmed, so `"  order  "` searches
-for `order` and `"   "` is an empty search. Whitespace *inside* a query is a character
-like any other, and no name contains one, so `"bill ing"` is rejected rather than
-silently returning nothing.
-
-Search matches against names, so a query holding a character no name can hold cannot
-match anything - and rather than answering that with an empty result, the boundary
-rejects it, which says *why* nothing was found instead of leaving a caller to guess.
+A query holding anything else is rejected rather than answered with an empty result,
+which says *why* nothing was found instead of leaving a caller to guess.
 
 Validating above storage is what makes the rule uniform. Python permits strings no
 database can hold - a NUL is not valid in PostgreSQL `text`, a lone surrogate is not
@@ -409,10 +404,29 @@ quietly return nothing. That is one call answering two ways depending on the ope
 choice of store, which is the divergence the whole search guarantee exists to rule out.
 Rejected at the boundary, no backend ever sees one.
 
-**This is a rule about searching *names*.** When matching grows to cover the
-description, which is free text, a query containing a space or an accent becomes
-perfectly meaningful and this constraint has to widen with it.
+**Still ASCII, even though descriptions are free text.** The constraint is not that a
+non-ASCII query would be meaningless - searching a description for `naive` is a fair
+thing to want - but that no two stores fold case the same way for it. SQLite's `lower()`
+is ASCII-only, PostgreSQL's follows the collation, and Python's `casefold` maps `sz` to
+`ss` where neither database does. An ASCII-only query cannot observe any of those
+differences, so the alphabet is what keeps "faster, never different" true. Widening it
+means giving the backends a folded form to match against rather than folding at query
+time; see `DECISIONS.md`.
 """
+
+_ASCII_FOLD = str.maketrans(ascii_uppercase, ascii_lowercase)
+
+
+def fold(text: str) -> str:
+    """`text` with ASCII letters lowercased and every other character left alone.
+
+    Deliberately not `casefold`, which is the right answer for comparing human text and
+    the wrong one here: it maps `sz` to `ss` and lowercases accented capitals, and no
+    database this runs on does either, so using it would make the in-Python backends
+    answer differently from the SQL one. Matching what SQLite's ASCII-only `lower()`
+    does is what keeps every backend on the same answer.
+    """
+    return text.translate(_ASCII_FOLD)
 
 
 class SearchQuery(ValueObject):
@@ -428,29 +442,30 @@ class SearchQuery(ValueObject):
     to check rather than two ways of saying "everything". `parse` is the boundary
     entry point that maps a blank box onto that `None`.
 
-    The text is normalised on the way in - trimmed and casefolded - so equality agrees
-    with behaviour: two queries that always return the same rows *are* the same query.
-    Presentation redisplays what the reader typed from the request, not from here.
+    The text is normalised on the way in - folded, and reduced to its distinct terms in
+    the order they were typed - so equality agrees with behaviour: two queries that
+    always return the same rows *are* the same query. Presentation redisplays what the
+    reader typed from the request, not from here.
     """
 
     text: Annotated[
         str, Field(pattern=QUERY_PATTERN, min_length=1, max_length=MAX_QUERY_LENGTH)
     ]
-    """Trimmed and casefolded, so it is the form matching compares against.
+    """The canonical form of the query: its distinct terms, folded, single-spaced.
 
-    `casefold` rather than `lower`: it is the comparison Unicode defines for this, and
-    although `NAME_PATTERN` admits only ASCII today, the fields matched here are
-    expected to grow to include the description, which is free text.
+    Runs of whitespace collapse and a repeated term is dropped, because neither changes
+    which schemas match, and leaving them in would let two queries that behave
+    identically compare unequal.
     """
 
     @model_validator(mode="before")
     @classmethod
     def _normalise(cls, value: Any) -> Any:
-        """Accept a raw string, trimmed and casefolded."""
+        """Fold the text and reduce it to its distinct terms, order preserved."""
+        if isinstance(value, Mapping):
+            value = value.get("text")
         if isinstance(value, str):
-            return {"text": value.strip().casefold()}
-        if isinstance(value, Mapping) and isinstance(value.get("text"), str):
-            return {**value, "text": value["text"].strip().casefold()}
+            return {"text": " ".join(dict.fromkeys(fold(value).split()))}
         return value
 
     @classmethod
@@ -469,17 +484,33 @@ class SearchQuery(ValueObject):
             return None
         return cls(text=raw)
 
+    @property
+    def terms(self) -> tuple[str, ...]:
+        """The words that must all be found, already folded and deduplicated."""
+        return tuple(self.text.split())
+
     def matches(self, schema: Schema) -> bool:
         """Whether `schema` satisfies the search guarantee for this query.
 
-        The guarantee is deliberately narrow - a case-insensitive substring of the
-        name - because the same interface sits over a Python scan, a SQL `LIKE`, and one
-        day something with an index, and a caller has to be able to rely on the answer
-        being the same wherever it runs. A faster implementation is allowed; a different
-        one is not. Stemming, fuzzy matching and relevance ordering are all
-        *differences*, which is why none of them are promised (see `DECISIONS.md`).
+        The guarantee: **every** term is a substring of the name or of the description,
+        ignoring ASCII case. Deliberately narrow, because the same interface sits over a
+        Python scan, a SQL `LIKE`, and one day something with an index, and a caller has
+        to be able to rely on the answer being the same wherever it runs. A faster
+        implementation is allowed; a different one is not. Stemming, fuzzy matching and
+        relevance ordering are all *differences*, which is why none of them are promised
+        (see `DECISIONS.md`).
+
+        Terms are combined with AND, so adding a word narrows the result. OR would widen
+        it, which is unusable without ranking to float the better matches - and ranking
+        is the part no two implementations agree on.
+
+        A term may be found in either field, and different terms in different fields: a
+        schema named `payment` whose description mentions invoices answers
+        `payment invoice`. Requiring both in one field would make the pair of fields
+        visible to the caller, when the point of one box is that it is not.
         """
-        return self.text in schema.name.casefold()
+        haystacks = (fold(schema.name), fold(str(schema.description)))
+        return all(any(term in hay for hay in haystacks) for term in self.terms)
 
 
 class SchemaRepository(ABC):

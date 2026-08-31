@@ -46,7 +46,7 @@ a string:
 
 - names sort together, so `GET /api/schemas` groups them visually;
 - `GET /api/schemas?q=billing.` finds them, since [search](retrieving.md#searching)
-  matches a substring of the name.
+  matches a substring of the name or the description.
 
 **It is deliberately a convention rather than a mechanism.** Any grouping the registry
 enforced would have to be part of a schema's address, and the address is the canonical

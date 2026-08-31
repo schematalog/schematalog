@@ -221,8 +221,8 @@ def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, exa
     """A browser gets a page; an error document is the wrong answer to a typo."""
     client.post("/api/schemas", json=example_schema)
 
-    response = client.get("/schemas/", params={"q": "two words"})
+    response = client.get("/schemas/", params={"q": "ordér"})
 
     assert response.status_code == HTTPStatus.OK
-    assert "not something a schema name could contain" in response.text
+    assert "not something this search can look for" in response.text
     assert example_schema["name"] not in response.text

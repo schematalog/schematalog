@@ -27,6 +27,92 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-31: One search box, several terms, no syntax
+
+**Decided.** Search matches **name and description** through a single `q` parameter.
+Every whitespace-separated word must be found as a case-insensitive substring of one or
+the other - not necessarily the same one. Terms are combined with AND. There is no
+syntax of any kind: no quoting, no field prefixes, no boolean operators, no negation,
+no wildcards.
+
+**The hard rule that keeps it from growing a query language:** *no character inside a
+parameter value ever means anything.* A value is a literal substring. Every future
+capability arrives as a new named parameter, never as syntax inside an existing one.
+
+That rule exists because a query DSL is never designed; it is arrived at as a *repair*.
+One field matches too much, results get useless, and the fix that suggests itself is
+letting the caller disambiguate inside the string - `name:order`, quoting, `-deprecated`.
+The moment a character has meaning, there is a grammar, a precedence table, an escaping
+rule and an error vocabulary to own forever. Preventing the overloaded field prevents the
+language. The character allowlist already enforces most of this by refusing `:`, quotes,
+parentheses and every other operator character an author might reach for.
+
+**Why AND rather than OR.** Adding a word must narrow. OR widens, and widening is only
+survivable when ranking floats the better matches to the top - which was given up
+deliberately (see the entry below). Unranked, an OR search returns a longer list in
+alphabetical order with no way to refine it, which is worse than no search.
+
+**Why split at all, rather than matching the query verbatim.** A verbatim substring makes
+the two searched fields behave differently without saying so: a name can never contain a
+space, so the first two-word query silently drops names out of consideration entirely
+while single-word queries search both. Splitting keeps the fields interchangeable, which
+is the entire point of offering one box.
+
+**What that costs: adjacency.** There is no way to require that two words appear next to
+each other, because the conventional way to ask - quoting - is syntax inside a value.
+Accepted knowingly; it will be the first thing anyone asks for.
+
+**Rejected: separate `name=` and `description=` parameters instead of one box.** They
+remain available later, and are the right shape for a *third* searchable surface: matching
+inside the schema document is a different question ("which schemas have a property like
+this?") whose results would swamp the other two under a filter with no ranking - a search
+for `email` would return nearly every schema. When document search lands it should be its
+own parameter rather than folded into `q`.
+
+**Non-ASCII stays refused, which is a case-folding decision rather than a scope one.**
+Searching a description for an accented word is perfectly meaningful; the problem is that
+no two stores fold case alike. SQLite's `lower()` handles only ASCII, PostgreSQL's follows
+the collation, and Python's `casefold` maps a sharp s to `ss` where neither database does.
+An ASCII-only query cannot observe any of those differences, so the alphabet is what keeps
+the "faster, never different" guarantee true. In-Python matching therefore folds ASCII
+only, deliberately *not* using `casefold`. Widening the alphabet means giving backends a
+folded form to match against - a stored, application-written column - rather than folding
+as they query; worth doing when someone actually needs it, not before.
+
+**A query is a value object, not an entity.** `SearchQuery` validates and normalises once,
+and repositories receive one that is valid by construction rather than a raw string they
+must each re-check. Two searches for the same text are the same question and must return
+the same answer, so they are interchangeable and nothing refers to one afterwards - value
+semantics are what the guarantee is made of, and identity would raise "which one?" for
+something that must not have an answer.
+
+**Rejected: making it an entity now because saved searches might come later.** A saved
+search would not be a promoted `SearchQuery`; it would be a new aggregate *containing*
+one, alongside a name, a description and an owner - the same relationship `Schema` has
+with `SchemaDescription`. So the value object is a prerequisite either way and nothing is
+saved by building the wrapper early. It is also the deferred catalog concept in
+predicate-shaped clothing, and arrives through that door if it ever earns one. The
+reporting half of the motivation - what people search for, what returns nothing - is
+telemetry, answered by structured logs without a domain object at all.
+
+**A query is bounded at 128 characters**, its own constant rather than a share of
+`MAX_IDENTIFIER_LENGTH`: how long a stored name may be and how much someone may type into
+a box are unrelated questions that should move apart freely. It is a resource guard, not a
+semantic boundary, so it is set at the generous end where being wrong costs nothing rather
+than the tight end where being wrong refuses a legitimate search. No separate cap on the
+*number* of terms: N terms are one scan with N predicates per row, not N scans, and 128
+characters cannot hold enough of them to matter.
+
+**A description is text, never null.** Nothing acted on the difference between "absent"
+and "blank" - both render as nothing and both match nothing - while every layer carried
+`str | None` and every backend coalesced on read. It was also a live trap for search:
+matching against `str(schema.description)` reads `None` as the searchable word "none", so
+a query for `on` would have matched every schema without a description, on exactly the
+backends least suspected of it (SQL escapes it by accident, since `NULL LIKE ...` is
+NULL). `successor` stays nullable, and the boundary is worth stating: a value type with a
+natural empty - text, a list, a map - should not use null, while a reference to another
+entity should, because its absence is a fact about the referrer.
+
 ## 2026-08-29: Search comes before grouping; catalogs are deferred
 
 **Decided.** Phase 2 continues with **search**, then **labels**, and **catalogs only if

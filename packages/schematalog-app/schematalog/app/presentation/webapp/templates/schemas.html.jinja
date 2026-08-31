@@ -12,9 +12,9 @@
 {# A plain GET form: it searches without JavaScript, the query lands in the URL so a
    search can be linked and bookmarked, and the back button behaves. #}
 <form method="get" action="{{ url_for('schemas_list') }}" role="search" class="mb-6 flex gap-2">
-    <label for="schema-search" class="sr-only">Search schemas by name</label>
+    <label for="schema-search" class="sr-only">Search schemas by name or description</label>
     <input type="search" id="schema-search" name="q" value="{{ query }}"
-           placeholder="Search by name" autocomplete="off"
+           placeholder="Search schemas" autocomplete="off"
            class="input input-sm input-bordered w-full max-w-sm">
     <button type="submit" class="btn btn-sm">Search</button>
     {% if query %}
@@ -45,16 +45,17 @@
     {# Distinguish "your search found nothing" from "there is nothing here" - the same
        empty page otherwise tells a first-time visitor the registry is broken. #}
     {% if not query_is_valid %}
-    <p class="text-lg">That is not something a schema name could contain.</p>
+    <p class="text-lg">That is not something this search can look for.</p>
     <p class="mt-2 text-sm">
-        Names use letters, digits, <code>.</code>, <code>-</code> and <code>_</code>,
-        so a search containing anything else - a space, say - cannot match.
+        Searches use letters, digits, <code>.</code>, <code>-</code> and <code>_</code>,
+        with spaces between words. Accented letters and other symbols are not
+        searchable yet.
     </p>
     <p class="mt-2 text-sm">
         <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>
     </p>
     {% elif query %}
-    <p class="text-lg">No schema name contains &ldquo;{{ query }}&rdquo;.</p>
+    <p class="text-lg">Nothing matches &ldquo;{{ query }}&rdquo;.</p>
     <p class="mt-2 text-sm">
         <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>
     </p>

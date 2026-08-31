@@ -74,9 +74,9 @@ class ListLatestCommand(BaseModel):
     """Input for `SchemaService.list_latest_schemas`."""
 
     query: str | None = None
-    """Narrows the listing to schemas whose name contains this, ignoring case. `None` or
-    blank selects everything, so an empty search box behaves as no search rather than as
-    a search for nothing.
+    """Narrows the listing to schemas every word of this is found in, ignoring case.
+    `None` or blank selects everything, so an empty search box behaves as no search
+    rather than as a search for nothing.
 
     Raw text rather than a `SearchQuery`: this is the bridge from external input, and
     turning it into the validated value object is the service's job, so presentation

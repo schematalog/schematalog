@@ -18,34 +18,53 @@ Reads are open: everything in an instance is readable, by anyone.
 
 ## Searching
 
-`GET /api/schemas` accepts a `q` parameter that narrows the listing to schemas whose
-**name** contains it, ignoring case:
+`GET /api/schemas` accepts a `q` parameter that narrows the listing to schemas matching
+it, ignoring case:
 
 ```shell
 curl "https://schematalog.com/api/schemas?q=billing"
 ```
 
-It is a plain substring match on the name. Being explicit about what it does *not* do,
-because these are the things a search box usually implies:
+The rule in one sentence: **every whitespace-separated word in the query must appear as
+a substring of the schema's name or of its description.**
+
+Two consequences worth spelling out. Adding a word *narrows* the result rather than
+widening it, so a search can be refined by typing more:
+
+```shell
+curl "https://schematalog.com/api/schemas?q=billing%20invoice"
+```
+
+And the words need not all be found in the same field - a schema named `payment` whose
+description mentions invoices answers `?q=payment%20invoice`. You typed one box, so
+where each word was found is not something you should have to know.
+
+Being explicit about what it does *not* do, because these are the things a search box
+usually implies:
 
 - it does not stem, so `orders` does not find `order`;
 - it does not correct spelling or match approximately;
 - it does not rank. Results keep the same name-ascending order they have without a
   query, so a result's position tells you nothing about how well it matched;
-- it does not yet search descriptions or the schema document itself.
+- it has no syntax. No quoting, no `AND`/`OR`, no negation, no wildcards - every
+  character in a query is matched literally. This is a deliberate limit rather than an
+  unfinished feature; see [decisions](https://github.com/schematalog/schematalog/blob/main/DECISIONS.md);
+- because there is no quoting, there is no way to require two words be adjacent:
+  `?q=order%20line` finds a schema mentioning both words anywhere, not the phrase;
+- it does not yet search the schema document itself.
 
 A blank or missing `q` selects everything, so an empty search box behaves as no search
 rather than as a search for nothing. Whitespace around a query is trimmed, so
-`?q=%20order%20` searches for `order`.
+`?q=%20order%20` searches for `order`, and repeated words change nothing.
 
 ### What a query may contain
 
-A query may hold only the characters a schema **name** may hold - letters, digits,
-`.`, `-` and `_`. Anything else could not match any name, and is answered with
-`422 Unprocessable Entity` rather than with an empty list:
+A query may hold letters, digits, `.`, `-` and `_`, with whitespace between words, up
+to 128 characters. Anything else is answered with `422 Unprocessable Entity` rather than
+with an empty list:
 
 ```shell
-curl -i "https://schematalog.com/api/schemas?q=two%20words"   # 422
+curl -i "https://schematalog.com/api/schemas?q=cafe%CC%81"   # 422
 ```
 
 That is deliberate. An empty result would be indistinguishable from a search that
@@ -53,6 +72,17 @@ simply found nothing, leaving you to work out which had happened. It also keeps 
 rule uniform across backends: some strings a URL can carry cannot be stored in a
 database at all - a NUL byte is not valid in PostgreSQL text - and left unchecked the
 same request answered `200 []` on one backend and failed on another.
+
+**Accented and other non-ASCII characters are refused for a different reason.** They are
+perfectly meaningful against a description, but no two stores lower-case them the same
+way - SQLite handles only ASCII, PostgreSQL follows its collation - so allowing them
+would mean the same search returning different results on different instances. That is
+the one thing search here promises never to do, so the alphabet stays ASCII until the
+backends are given a folded form to match against rather than folding as they query.
+
+The 128-character cap is a resource guard rather than a meaningful boundary: no real
+search comes close, and an unbounded query would otherwise reach the database as a
+pattern to scan with.
 
 That narrowness is deliberate. The same query runs against whichever storage backend an
 instance is configured with, and each is free to answer it however it can answer it

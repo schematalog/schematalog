@@ -29,16 +29,21 @@ ALPHABET = "ab_.-A"
 FIRST = st.sampled_from("abA")
 REST = st.text(alphabet=ALPHABET, min_size=0, max_size=3)
 names = st.builds(lambda head, tail: head + tail, FIRST, REST)
-# Queries come from the same alphabet as names, since anything else is rejected at the
-# boundary and never reaches a repository.
-queries = st.text(alphabet=ALPHABET, min_size=0, max_size=3)
+# Descriptions draw from the same alphabet plus spaces, so a term can land in either
+# field - which is where an OR/AND mix-up and an uncoalesced NULL both show up. Empty
+# is included deliberately: it is what a schema nobody described stores.
+descriptions = st.text(alphabet=ALPHABET + " ", min_size=0, max_size=6)
+# Queries come from the same alphabet as names, plus the space that separates terms,
+# since anything else is rejected at the boundary and never reaches a repository.
+queries = st.text(alphabet=ALPHABET + " ", min_size=0, max_size=5)
 
 
-def build(name: str) -> Schema:
+def build(name: str, description: str = "") -> Schema:
     return Schema.model_validate(
         {
             "name": name,
             "version": "1",
+            "description": description,
             "schema": {"type": "object"},
             "publication_id": str(uuid.uuid7()),
         }
@@ -56,10 +61,14 @@ def _matches(schema, query: SearchQuery | None) -> bool:
 
 
 @settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(names=st.lists(names, min_size=0, max_size=6, unique=True), query=queries)
-def test_every_backend_answers_a_search_the_same_way(names, query):
+@given(
+    names=st.lists(names, min_size=0, max_size=6, unique=True),
+    descriptions=st.lists(descriptions, min_size=6, max_size=6),
+    query=queries,
+)
+def test_every_backend_answers_a_search_the_same_way(names, descriptions, query):
     async def run():
-        schemas = [build(name) for name in names]
+        schemas = [build(name, text) for name, text in zip(names, descriptions, strict=False)]
         parsed = SearchQuery.parse(query)
         expected = sorted(s.name for s in schemas if _matches(s, parsed))
 

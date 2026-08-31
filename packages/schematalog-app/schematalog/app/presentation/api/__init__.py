@@ -61,12 +61,13 @@ async def get_schemas(
             pattern=QUERY_PATTERN,
             max_length=MAX_QUERY_LENGTH,
             description=(
-                "Narrow the listing to schemas whose name contains this, ignoring case. "
-                "Matching is a plain substring: it does not stem, spell-correct or rank, "
-                "and results keep their name order whether or not a query is given. "
-                "Only the characters a schema name may contain are accepted; anything "
-                "else could not match and is rejected rather than answered with an "
-                "empty result."
+                "Narrow the listing to schemas matching this, ignoring case. Every "
+                "whitespace-separated word must appear as a substring of the name or "
+                "the description, though not all in the same field, so adding a word "
+                "narrows the result. Matching is a plain substring: it does not stem, "
+                "spell-correct or rank, and results keep their name order whether or "
+                "not a query is given. Letters, digits, `.`, `-` and `_` only; anything "
+                "else is rejected rather than answered with an empty result."
             ),
         ),
     ] = None,

@@ -229,8 +229,6 @@ def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
 @pytest.mark.parametrize(
     "query",
     (
-        "bill ing",
-        "two words",
         "ordér",
         "İ",
         "\U0001f600",
@@ -240,13 +238,10 @@ def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
         "or\x00der",
         "50%",
         "a\\b",
-        "or\nder",
         "<script>alert(1)</script>",
         "../../etc/passwd",
     ),
     ids=(
-        "internal space",
-        "two words",
         "non-ascii",
         "turkish dotted I",
         "emoji",
@@ -256,7 +251,6 @@ def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
         "null byte",
         "percent",
         "backslash",
-        "newline",
         "script tag",
         "path traversal",
     ),
@@ -264,11 +258,14 @@ def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
 def test_listing_schemas_rejects_a_query_no_name_could_contain(client, query):
     """Rejected rather than answered with an empty result.
 
-    Search matches names, so a query holding a character no name can hold cannot match
-    anything. Saying so beats returning nothing and leaving the caller to guess why -
-    and it keeps strings no database can store from reaching a driver at all. A null
-    byte is not valid in PostgreSQL `text`, so before this was validated the same
-    request answered `200 []` on SQLite and raised on PostgreSQL.
+    Saying so beats returning nothing and leaving the caller to guess why - and it keeps
+    strings no database can store from reaching a driver at all. A null byte is not
+    valid in PostgreSQL `text`, so before this was validated the same request answered
+    `200 []` on SQLite and raised on PostgreSQL.
+
+    Non-ASCII is refused for a different reason than the rest: it is perfectly
+    meaningful against a description, but no two stores fold its case alike, so allowing
+    it would break the promise that every backend answers the same.
     """
     assert (
         client.get("/api/schemas", params={"q": query}).status_code
@@ -311,6 +308,14 @@ def test_listing_schemas_accepts_a_query_at_the_cap(client):
     response = client.get("/api/schemas", params={"q": "x" * MAX_QUERY_LENGTH})
     assert response.status_code == HTTPStatus.OK
     assert response.json()["schemas"] == []
+
+
+@pytest.mark.parametrize(
+    "query", ("bill ing", "two words", "or\nder"), ids=("split name", "two words", "newline")
+)
+def test_listing_schemas_accepts_a_multi_word_query(client, query):
+    """Whitespace separates one term from the next, so several words are one search."""
+    assert client.get("/api/schemas", params={"q": query}).status_code == HTTPStatus.OK
 
 
 @pytest.mark.parametrize("query", ("  order  ", "   ", "\t"), ids=("padded", "spaces", "tab"))

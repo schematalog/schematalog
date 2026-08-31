@@ -49,6 +49,28 @@ def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
 _LIKE_ESCAPE = "\\"
 
 
+def _term_clauses(query: SearchQuery) -> list[sa.ColumnElement[bool]]:
+    """One clause per term, each requiring it in the name or the description.
+
+    ANDed by `where`, so every term must be found but not all in the same field. The
+    whole query is one scan with a predicate per row, not a statement per term.
+
+    `lower()` not `ILIKE`: the latter is PostgreSQL-only, and both backends must answer
+    identically. `coalesce` because an older row's description may still be NULL, and
+    `NULL LIKE ...` is NULL, which would drop the row from an OR that should have
+    matched on the name.
+    """
+    return [
+        sa.or_(
+            sa.func.lower(tables.schema.c.name).like(pattern, escape=_LIKE_ESCAPE),
+            sa.func.lower(sa.func.coalesce(tables.schema.c.description, "")).like(
+                pattern, escape=_LIKE_ESCAPE
+            ),
+        )
+        for pattern in (_like_contains(term) for term in query.terms)
+    ]
+
+
 def _like_contains(query: str) -> str:
     """A `LIKE` pattern matching `query` anywhere in a value, wildcards defanged.
 
@@ -189,14 +211,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             .order_by(tables.schema.c.name.asc())
         )
         if query is not None:
-            # `lower()` not `ILIKE`: the latter is PostgreSQL-only and both backends
-            # must answer identically, which holds only because names are ASCII.
-            # TODO: revisit when descriptions become searchable - they are not.
-            stmt = stmt.where(
-                sa.func.lower(tables.schema.c.name).like(
-                    _like_contains(query.text), escape=_LIKE_ESCAPE
-                )
-            )
+            stmt = stmt.where(*_term_clauses(query))
         async with self.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         for row in rows:

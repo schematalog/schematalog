@@ -9,9 +9,9 @@ project.
 What it offers:
 
 - **The catalog** (`/schemas/`) - every schema name with its latest version, with a
-  search box that narrows it by name. It is an ordinary form: the query goes into the
-  URL, so a search can be linked or bookmarked, and it works with JavaScript turned off.
-  It matches exactly what [the API's `q` parameter](../api/retrieving.md#searching)
+  search box that narrows it by name and description. It is an ordinary form: the query
+  goes into the URL, so a search can be linked or bookmarked, and it works with
+  JavaScript turned off. It matches exactly what [the API's `q` parameter](../api/retrieving.md#searching)
   matches, being the same call - though where the API answers an unusable query with
   `422`, the page says what went wrong and leaves the box ready to correct, an error
   document being the wrong response to a typo.
