@@ -7,7 +7,7 @@ gapmap is deliberately not carried over.
 
 from datetime import UTC
 
-from sqlalchemy import JSON, DateTime, String, TypeDecorator
+from sqlalchemy import JSON, DateTime, String, Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
 from schematalog.domain.schema import MAX_IDENTIFIER_LENGTH
@@ -36,6 +36,16 @@ AdaptiveJSONColumn = JSON().with_variant(JSONB(), "postgresql")
 IdentifierColumn = String(MAX_IDENTIFIER_LENGTH).with_variant(
     String(MAX_IDENTIFIER_LENGTH, collation="C"), "postgresql"
 )
+
+
+# Search folds case with ASCII rules, and the column's collation is what makes
+# PostgreSQL's `lower()` agree. Under the database's own locale it folds a handful of
+# non-ASCII characters *to* ASCII - `lower('KELVIN SIGN')` is `k` - so a pure-ASCII
+# query matched a description on PostgreSQL that it matched nowhere else. Under `C`
+# it lowercases ASCII and nothing more, which is exactly what SQLite's `lower()` and
+# the domain's own `fold` do. Names need no such treatment: `IdentifierColumn` above
+# is already `C`-collated, for ordering.
+DescriptionColumn = Text().with_variant(Text(collation="C"), "postgresql")
 
 
 class TimezoneAwareDateTime(TypeDecorator):

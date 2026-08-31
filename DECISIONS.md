@@ -73,11 +73,16 @@ own parameter rather than folded into `q`.
 Searching a description for an accented word is perfectly meaningful; the problem is that
 no two stores fold case alike. SQLite's `lower()` handles only ASCII, PostgreSQL's follows
 the collation, and Python's `casefold` maps a sharp s to `ss` where neither database does.
-An ASCII-only query cannot observe any of those differences, so the alphabet is what keeps
-the "faster, never different" guarantee true. In-Python matching therefore folds ASCII
-only, deliberately *not* using `casefold`. Widening the alphabet means giving backends a
-folded form to match against - a stored, application-written column - rather than folding
-as they query; worth doing when someone actually needs it, not before.
+The alphabet alone does not settle it, because it bounds the needle and not the haystack.
+A description is free text, so a store that folds a non-ASCII character *to* an ASCII one
+answers an ASCII query differently from one that does not - PostgreSQL under its own
+locale lowercases `KELVIN SIGN` to `k`, which SQLite and Python do not. So every side
+folds by ASCII rules: in-Python matching uses an ASCII fold rather than `casefold`,
+SQLite's `lower()` is already ASCII-only, and the description column is `C`-collated on
+PostgreSQL, which makes its `lower()` ASCII-only too. With that in place the alphabet
+keeps the guarantee true. Widening it means giving backends a folded form to match
+against - a stored, application-written column - rather than folding as they query;
+worth doing when someone actually needs it, not before.
 
 **A query is a value object, not an entity.** `SearchQuery` validates and normalises once,
 and repositories receive one that is valid by construction rather than a raw string they

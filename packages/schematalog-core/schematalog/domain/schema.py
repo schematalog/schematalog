@@ -405,10 +405,15 @@ Rejected at the boundary, no backend ever sees one.
 non-ASCII query would be meaningless - searching a description for `naive` is a fair
 thing to want - but that no two stores fold case the same way for it. SQLite's `lower()`
 is ASCII-only, PostgreSQL's follows the collation, and Python's `casefold` maps `sz` to
-`ss` where neither database does. An ASCII-only query cannot observe any of those
-differences, so the alphabet is what keeps "faster, never different" true. Widening it
-means giving the backends a folded form to match against rather than folding at query
-time; see `DECISIONS.md`.
+`ss` where neither database does.
+
+The alphabet alone is not enough, because it bounds the needle and not the haystack: a
+description is free text, and a store that folds a non-ASCII character *to* an ASCII one
+answers an ASCII query differently from one that does not. So every side folds by ASCII
+rules - `fold` below, SQLite's own `lower()`, and a `C`-collated column on PostgreSQL -
+and the alphabet then keeps "faster, never different" true. Widening it means giving the
+backends a folded form to match against rather than folding at query time; see
+`DECISIONS.md`.
 """
 
 _ASCII_FOLD = str.maketrans(ascii_uppercase, ascii_lowercase)

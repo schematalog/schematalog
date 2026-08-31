@@ -385,6 +385,18 @@ class SchemaRepositoryConformance:
             s async for s in repository.list_latest(query=SearchQuery(text="invoice"))
         ] == []
 
+    async def test_list_latest_folds_case_by_ascii_rules_only(self, repository):
+        """A non-ASCII character must not fold into an ASCII one.
+
+        The query alphabet is ASCII, so this looks unreachable - but the *description*
+        is free text, and a store whose `lower()` follows a Unicode locale turns
+        `KELVIN SIGN` into `k`, matching a query that matches nowhere else. Descriptions
+        must therefore be compared with ASCII folding, which on PostgreSQL means a
+        `C`-collated column.
+        """
+        await repository.add(build_schema(name="alpha", version="1", description="\u212a"))
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="k"))] == []
+
     async def test_list_latest_searches_only_the_latest_version(self, repository):
         """One hit per name, not one per version - the filter narrows the same listing."""
         await repository.add(build_schema(name="alpha", version="1"))
