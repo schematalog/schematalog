@@ -377,16 +377,6 @@ class Schema(BaseModel):
         return cls.model_validate(raw)
 
 
-MAX_QUERY_LENGTH = 128
-"""How long a search query may be.
-
-Its own bound rather than a share of `MAX_IDENTIFIER_LENGTH`: how long a stored name
-may be and how much someone may type into a search box are unrelated questions that
-should be free to move apart. The number is a resource guard, not a semantic boundary -
-no real search approaches it - so it is set at the generous end, where being wrong
-costs nothing, rather than the tight end, where being wrong rejects a legitimate search.
-"""
-
 QUERY_PATTERN = r"^[0-9a-zA-Z\-_.\s]*$"
 """The characters a search query may contain: those `NAME_PATTERN` allows, plus
 whitespace, which separates one term from the next.
@@ -450,9 +440,7 @@ class SearchQuery(ValueObject):
     reader typed from the request, not from here.
     """
 
-    text: Annotated[
-        str, Field(pattern=QUERY_PATTERN, min_length=1, max_length=MAX_QUERY_LENGTH)
-    ]
+    text: Annotated[str, Field(pattern=QUERY_PATTERN, min_length=1)]
     """The canonical form of the query: its distinct terms, folded, single-spaced.
 
     Runs of whitespace collapse and a repeated term is dropped, because neither changes
@@ -479,8 +467,9 @@ class SearchQuery(ValueObject):
         answering it with everything.
 
         Raises:
-            ValidationError: If `raw` holds a character no name may hold, or is longer
-                than `MAX_QUERY_LENGTH`.
+            ValidationError: If `raw` holds a character no name may hold. Length is not
+                checked here - it is a transport limit, applied by the layer that
+                accepts the request.
         """
         if raw is None or not raw.strip():
             return None

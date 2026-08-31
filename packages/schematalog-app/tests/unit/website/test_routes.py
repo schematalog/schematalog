@@ -2,6 +2,7 @@ from http import HTTPStatus
 
 from schematalog.app.presentation import app
 from schematalog.app.presentation.helpers import buildinfo
+from schematalog.app.wiring.config import settings
 
 
 def test_homepage_renders(client):
@@ -215,6 +216,24 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
     assert "No schemas yet" not in page
     assert "nothing-matches-this" in page
     assert "Show every schema" in page
+
+
+def test_schema_list_refuses_a_query_longer_than_the_api_would_accept(client):
+    """The two surfaces accept the same queries, and differ only in how they refuse.
+
+    They read one constant, but nothing else stops them drifting: the cap used to be
+    applied to the raw string on one and to the normalised text on the other, so a
+    query could be 422 from the API and an ordinary results page in the browser.
+    """
+    over_the_cap = "ab " * ((settings.MAX_QUERY_LENGTH // 3) + 1)
+    assert len(over_the_cap) > settings.MAX_QUERY_LENGTH
+
+    assert client.get("/api/schemas", params={"q": over_the_cap}).status_code == (
+        HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+    page = client.get("/schemas/", params={"q": over_the_cap})
+    assert page.status_code == HTTPStatus.OK
+    assert "not something this search can look for" in page.text
 
 
 def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, example_schema):

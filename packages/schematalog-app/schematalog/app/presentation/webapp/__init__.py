@@ -26,6 +26,7 @@ from schematalog.app.application.schema import (
 )
 from schematalog.app.presentation.helpers.property_type import render_property_type
 from schematalog.app.presentation.helpers.urls import canonical_url_for, stamp_canonical_id
+from schematalog.app.wiring.config import settings
 from schematalog.app.wiring.factories import get_service
 
 from .templates import templates
@@ -84,7 +85,11 @@ async def schemas_list(
     """
     # The API answers an unusable query with 422; a browser gets a page instead, because
     # an error document is the wrong response to someone mistyping in a search box.
+    # The length cap is the API's, applied here too so the two surfaces accept the same
+    # queries; the API answers an unusable one with 422, a browser gets a page instead.
     try:
+        if len(q) > settings.MAX_QUERY_LENGTH:
+            raise InvalidSearchQueryError  # noqa: TRY301
         schemas = [
             _template_schema(view, request)[0]
             async for view in service.list_latest_schemas(ListLatestCommand(query=q))
@@ -96,7 +101,12 @@ async def schemas_list(
     return templates.TemplateResponse(
         request,
         "schemas.html.jinja",
-        {"schemas": schemas, "query": q, "query_is_valid": valid},
+        {
+            "schemas": schemas,
+            "query": q,
+            "query_is_valid": valid,
+            "max_query_length": settings.MAX_QUERY_LENGTH,
+        },
     )
 
 

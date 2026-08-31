@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from schematalog.app.application.schema import (
-    MAX_QUERY_LENGTH,
     QUERY_PATTERN,
     GetSchemaCommand,
     ListLatestCommand,
@@ -30,6 +29,7 @@ from schematalog.app.presentation.helpers.urls import (
     resolve_successor,
     stamp_canonical_id,
 )
+from schematalog.app.wiring.config import settings
 from schematalog.app.wiring.factories import get_service
 
 # Tagged for the reader of the generated reference, who sees the tag as the section
@@ -59,7 +59,7 @@ async def get_schemas(
         str | None,
         Query(
             pattern=QUERY_PATTERN,
-            max_length=MAX_QUERY_LENGTH,
+            max_length=settings.MAX_QUERY_LENGTH,
             description=(
                 "Narrow the listing to schemas matching this, ignoring case. Every "
                 "whitespace-separated word must appear as a substring of the name or "

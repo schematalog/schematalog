@@ -6,7 +6,6 @@ from pydantic import ValidationError
 import pytest
 
 from schematalog.domain.schema import (
-    MAX_QUERY_LENGTH,
     NAME_PATTERN,
     QUERY_PATTERN,
     JsonSchemaDocument,
@@ -301,13 +300,13 @@ def test_search_query_is_never_empty():
         SearchQuery(text="")
 
 
-def test_search_query_refuses_text_longer_than_the_cap():
-    with pytest.raises(ValidationError):
-        SearchQuery(text="x" * (MAX_QUERY_LENGTH + 1))
+def test_search_query_does_not_bound_its_own_length():
+    """Length is a transport limit, applied where the request is accepted.
 
-
-def test_search_query_accepts_text_at_the_cap():
-    assert SearchQuery(text="x" * MAX_QUERY_LENGTH).text == "x" * MAX_QUERY_LENGTH
+    The domain constrains what a query *means* - its alphabet, and that it is never
+    empty. How much someone may type is a judgement about requests, not about matching.
+    """
+    assert SearchQuery(text="x" * 5000).text == "x" * 5000
 
 
 @pytest.mark.parametrize("query", ["order!", "ordér", "\x00", "\ud800"])

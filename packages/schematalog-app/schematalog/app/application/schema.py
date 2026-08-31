@@ -24,7 +24,6 @@ from schematalog.common.validation import IncompatibleSchemaError, preprocess_sc
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
 
 # Re-exported for presentation, which must not import from `domain`.
-from schematalog.domain.schema import MAX_QUERY_LENGTH as MAX_QUERY_LENGTH
 from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
 from schematalog.domain.schema import (
     UNSET,

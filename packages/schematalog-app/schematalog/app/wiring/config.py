@@ -9,6 +9,7 @@ Storage is one variable - a URL whose scheme selects the backend:
 
 from enum import StrEnum
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from schematalog.app.wiring.storage import DEFAULT_STORAGE_URL
@@ -51,6 +52,23 @@ class Settings(BaseSettings):
     """Selects and configures the store in one setting: the scheme picks the backend and
     the query string carries its options (see `wiring/storage.py`). Defaults to SQLite in
     the working directory, so a bare run needs no configuration at all."""
+    MAX_QUERY_LENGTH: int = Field(default=128, ge=1, le=4096)
+    """How long a search query may be, in characters.
+
+    A resource guard rather than a semantic boundary - no real search approaches the
+    default - so it is set at the generous end, where being wrong costs nothing, rather
+    than the tight end, where being wrong refuses a legitimate search. It bounds the work
+    a query can ask for: a leading-wildcard `LIKE` cannot use an index, so cost is linear
+    in the text scanned.
+
+    Deliberately not a share of the domain's `MAX_IDENTIFIER_LENGTH`: how long a stored
+    name may be and how much someone may type into a box are unrelated questions.
+
+    It is published, not hidden: it appears as `maxLength` on the `q` parameter in this
+    instance's OpenAPI document, so a client generated against an instance carries that
+    instance's bound. Its own bounds are what keep it from being set to something that
+    disables the guard or breaks the schema.
+    """
     VITE_DEV_SERVER: str = ""
     """Base URL of a running Vite dev server (e.g. `http://localhost:5173`). When set,
     `vite_asset()` emits dev tags (HMR) instead of resolving the built manifest. Empty

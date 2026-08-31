@@ -14,7 +14,7 @@
 <form method="get" action="{{ url_for('schemas_list') }}" role="search" class="mb-6 flex gap-2">
     <label for="schema-search" class="sr-only">Search schemas by name or description</label>
     <input type="search" id="schema-search" name="q" value="{{ query }}"
-           placeholder="Search schemas" autocomplete="off"
+           placeholder="Search schemas" autocomplete="off" maxlength="{{ max_query_length }}"
            class="input input-sm input-bordered w-full max-w-sm">
     <button type="submit" class="btn btn-sm">Search</button>
     {% if query %}
