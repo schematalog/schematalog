@@ -247,7 +247,6 @@ class SQLAlchemySchemaRepository(SchemaRepository):
     def _row_to_schema(row: sa.Row) -> Schema:
         return Schema(
             identity=SchemaIdentity(name=row.name, version=row.version),
-            # `SchemaDescription` reads a NULL left by an older row as the empty description.
             description=SchemaDescription(text=row.description),
             json_schema=JsonSchemaDocument(document=row.json_schema),
             publication_id=row.publication_id,

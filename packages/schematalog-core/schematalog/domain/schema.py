@@ -109,14 +109,7 @@ class SchemaDescription(ValueObject):
     @model_validator(mode="before")
     @classmethod
     def _wrap_raw(cls, value: Any) -> Any:
-        """Accept a raw string, and read a stored `None` as the empty description.
-
-        `None` arrives from records written before the field became non-nullable -
-        a nullable column, or JSON holding an explicit null. Coercing here rather
-        than in each backend means no read path has to remember to do it.
-        """
-        if value is None:
-            return {"text": ""}
+        """Accept a raw string, so call sites stay terse."""
         if isinstance(value, str):
             return {"text": value}
         return value
@@ -210,7 +203,11 @@ class Schema(BaseModel):
     "absent" and "blank" alike - while obliging each of them to handle two states, and
     it made a naive substring search read `str(None)` as the searchable word "none".
     Contrast `successor`, which stays nullable because it references another version
-    rather than holding a value, so its absence is a fact about this one."""
+    rather than holding a value, so its absence is a fact about this one.
+
+    A stored `None` is *not* accepted, deliberately: reading one would mean supporting
+    a database written by an older version, which is a promise 0.x does not make (see
+    `DECISIONS.md`)."""
     json_schema: Annotated[
         JsonSchemaDocument, Field(alias="schema", description="The JSON Schema document.")
     ]

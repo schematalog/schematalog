@@ -65,15 +65,6 @@ def test_schema_description_accepts_nested_dict():
     assert desc.text == "hello"
 
 
-def test_schema_description_reads_a_stored_null_as_empty_text():
-    """A record written before the field became non-nullable still loads.
-
-    The nullable column and the explicit JSON null both arrive as `None`, and every
-    backend's read path goes through here, so none of them has to coalesce.
-    """
-    assert SchemaDescription.model_validate(None).text == ""
-
-
 def test_schema_description_str_returns_text():
     desc = SchemaDescription(text="hello")
     assert str(desc) == "hello"
