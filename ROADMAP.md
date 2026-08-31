@@ -89,6 +89,23 @@ Deferred deliberately: deciding what the *lifecycle* metadata (deprecated, succe
 looks like once visibility is gone. It is independent of all of the above and should
 not be disturbed by the teardown.
 
+## A repeatable reset for the demo
+
+The demo at schematalog.com is the one instance affected by shipping no migrations before
+1.0 (see `DECISIONS.md`), so it is recreated rather than upgraded, and that needs to be
+one unceremonious command rather than a remembered sequence.
+
+Wanted for a second reason too: once anyone reaching the demo can publish to it, it needs
+restoring to known sample data periodically, so a visitor meets the registry as intended
+rather than as whatever the last passer-by left.
+
+Note what it cannot be built from today: there is **no delete** anywhere - not on the API,
+not on the repository protocol - so a reset is currently an infrastructure operation
+(drop the store, `just seed`) rather than something expressible through the product. That
+is worth deciding deliberately rather than by default, because "empty this catalog" was
+explicitly ruled out of the storage contract and assigned to a future SDK as orchestration
+over the API - which presumes an API that can delete.
+
 ## Phase 2: the API
 
 The product. Roughly in dependency order.

@@ -27,6 +27,46 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-31: No migrations before 1.0; a schema change may require a reset
+
+**Decided, as a default rather than a rule.** Schematalog ships **no database migrations**
+before 1.0: a release may change the storage schema outright, and the supported way to
+move an existing instance onto a new version is to recreate its store. 1.0 is the point
+at which that stops being defensible, not a commitment to wait for it - a strong enough
+reason overturns this at any time, and real users appearing is the obvious one. What
+follows is the reasoning to argue against, not a rule to route around.
+
+**Why this is a decision and not an omission.** For self-hosted software the vendor
+normally ships migrations, and for good reasons: the user did not make the change and
+cannot reasonably infer it, the work would otherwise be repeated by every user for every
+release, and a migration is often a data backfill rather than DDL - ours would be
+`UPDATE schema SET description = '' WHERE description IS NULL`, which no column
+definition implies. All of that is true and none of it applies yet, because 0.x promises
+nothing. Carrying a migration chain through a phase that is still reshaping the schema
+means maintaining history for states nobody is running.
+
+**What it costs, concretely.** `create_all` creates tables but never alters them, so an
+instance upgraded rather than recreated keeps its old columns - a nullable `description`
+where the current code declares `NOT NULL`, and no `C` collation on it. The code does
+*not* compensate: a `None` read out of a legacy row raises rather than being coerced to
+empty text. That is deliberate. Tolerating old shapes is how a codebase acquires an
+unversioned, untested migration path that nobody chose and nobody can remove.
+
+**The one instance this affects is ours**, the demo at schematalog.com, which is
+therefore reset rather than upgraded. That makes a repeatable reset a real requirement
+rather than a convenience - see `ROADMAP.md`. It is also wanted for its own sake: once
+anyone can publish to the demo, it needs restoring to known data periodically.
+
+**When migrations do return, two things are already settled.** They belong to the **SQL
+backend alone** and not to the storage contract: only that backend has DDL, and the
+repository protocol's five methods must not grow a sixth that most backends cannot
+meaningfully implement. Memory, filesystem and S3 face *format* versioning instead, whose
+answer is forward-compatible reading in the domain - the shape `Schema` already uses to
+accept a flat identity or a missing `deprecated`. And a migration chain must not become a
+second definition of the schema alongside `create_all`: either the chain is the schema, or
+CI asserts the two converge, because that drift is silent and leaves fresh and upgraded
+instances structurally different with only one of them tested.
+
 ## 2026-08-31: One search box, several terms, no syntax
 
 **Decided.** Search matches **name and description** through a single `q` parameter.
