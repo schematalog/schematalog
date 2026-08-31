@@ -108,7 +108,7 @@ class SchemaDescription(ValueObject):
 
     @model_validator(mode="before")
     @classmethod
-    def _wrap_raw(cls, value: Any) -> Any:
+    def _accept_plain_string(cls, value: Any) -> Any:
         """Accept a raw string, so call sites stay terse."""
         if isinstance(value, str):
             return {"text": value}
@@ -130,7 +130,7 @@ class SuccessorReference(ValueObject):
 
     @field_validator("url")
     @classmethod
-    def _must_be_absolute(cls, value: str) -> str:
+    def _require_absolute_uri(cls, value: str) -> str:
         parsed = urlparse(value)
         if not (parsed.scheme and parsed.netloc):
             raise ValueError("successor must be an absolute URI")  # noqa: TRY003
@@ -142,7 +142,7 @@ class SuccessorReference(ValueObject):
 
     @model_validator(mode="before")
     @classmethod
-    def _wrap_raw(cls, value: Any) -> Any:
+    def _accept_plain_string(cls, value: Any) -> Any:
         if isinstance(value, str):
             return {"url": value}
         return value
@@ -152,7 +152,7 @@ class JsonSchemaDocument(ValueObject):
     """A JSON Schema document.
 
     The document is expected to have been normalised + metaschema-validated via
-    `common.validation.preprocess_schema` before construction (so `$schema` is
+    `common.validation.normalise_for_publication` before construction (so `$schema` is
     set, OpenAPI `nullable` is converted, and any incoming `$id` is stripped).
     Forthcoming `$ref` resolution and instance-validation methods belong here.
 
@@ -296,7 +296,7 @@ class Schema(BaseModel):
 
     @field_validator("json_schema", mode="before")
     @classmethod
-    def _wrap_json_schema(cls, value: Any) -> Any:
+    def _accept_plain_document(cls, value: Any) -> Any:
         """Wrap a raw JSON Schema dict into `{"document": dict}` for construction.
 
         Skipped when the value is already a `JsonSchemaDocument` (Python
@@ -309,7 +309,7 @@ class Schema(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _gather_flat_identity(cls, data: Any) -> Any:
+    def _accept_flat_identity(cls, data: Any) -> Any:
         """Accept the flat stored form `{name, version, ...}` as well as the nested
         `{identity: {name, version}, ...}`.
 
@@ -393,14 +393,14 @@ Rejected at the boundary, no backend ever sees one.
 
 **Still ASCII, even though descriptions are free text.** The constraint is not that a
 non-ASCII query would be meaningless - searching a description for `naive` is a fair
-thing to want - but that no two stores fold case the same way for it. SQLite's `lower()`
+thing to want - but that no two stores to_lowercase_ascii case the same way for it. SQLite's `lower()`
 is ASCII-only, PostgreSQL's follows the collation, and Python's `casefold` maps `sz` to
 `ss` where neither database does.
 
 The alphabet alone is not enough, because it bounds the needle and not the haystack: a
 description is free text, and a store that folds a non-ASCII character *to* an ASCII one
 answers an ASCII query differently from one that does not. So every side folds by ASCII
-rules - `fold` below, SQLite's own `lower()`, and a `C`-collated column on PostgreSQL -
+rules - `to_lowercase_ascii` below, SQLite's own `lower()`, and a `C`-collated column on PostgreSQL -
 and the alphabet then keeps "faster, never different" true. Widening it means giving the
 backends a folded form to match against rather than folding at query time; see
 `DECISIONS.md`.
@@ -409,7 +409,7 @@ backends a folded form to match against rather than folding at query time; see
 _ASCII_FOLD = str.maketrans(ascii_uppercase, ascii_lowercase)
 
 
-def fold(text: str) -> str:
+def to_lowercase_ascii(text: str) -> str:
     """`text` with ASCII letters lowercased and every other character left alone.
 
     Deliberately not `casefold`, which is the right answer for comparing human text and
@@ -455,7 +455,7 @@ class SearchQuery(ValueObject):
         if isinstance(value, Mapping):
             value = value.get("text")
         if isinstance(value, str):
-            return {"text": " ".join(dict.fromkeys(fold(value).split()))}
+            return {"text": " ".join(dict.fromkeys(to_lowercase_ascii(value).split()))}
         return value
 
     @classmethod
@@ -500,7 +500,10 @@ class SearchQuery(ValueObject):
         `payment invoice`. Requiring both in one field would make the pair of fields
         visible to the caller, when the point of one box is that it is not.
         """
-        haystacks = (fold(schema.name), fold(str(schema.description)))
+        haystacks = (
+            to_lowercase_ascii(schema.name),
+            to_lowercase_ascii(str(schema.description)),
+        )
         return all(any(term in hay for hay in haystacks) for term in self.terms)
 
 

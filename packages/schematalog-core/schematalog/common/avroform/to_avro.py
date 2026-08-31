@@ -44,7 +44,7 @@ def to_avro(
     Raises:
         AvroConversionError: If the schema uses unsupported constructs.
     """
-    return _convert(_resolve_refs(json_schema, json_schema, ()), name, namespace, set())
+    return _to_avro_type(_resolve_refs(json_schema, json_schema, ()), name, namespace, set())
 
 
 def _resolve_refs(schema: Any, root: dict, stack: tuple[str, ...]) -> Any:
@@ -89,7 +89,7 @@ def _deref(ref: str, root: dict) -> Any:
     return node
 
 
-def _convert(schema: Any, name: str, namespace: str, seen: set[str]) -> AvroType:
+def _to_avro_type(schema: Any, name: str, namespace: str, seen: set[str]) -> AvroType:
     if not isinstance(schema, dict):
         raise AvroConversionError(f"Expected a schema object, got {type(schema).__name__}.")
     for keyword in _UNSUPPORTED:
@@ -116,18 +116,18 @@ def _convert(schema: Any, name: str, namespace: str, seen: set[str]) -> AvroType
 def _object(schema: dict, name: str, namespace: str, seen: set[str]) -> AvroType:
     additional = schema.get("additionalProperties")
     if not schema.get("properties") and isinstance(additional, dict):
-        return {"type": "map", "values": _convert(additional, name, namespace, seen)}
+        return {"type": "map", "values": _to_avro_type(additional, name, namespace, seen)}
 
-    record_name = _unique(_pascal(schema.get("title") or name), seen)
+    record_name = _reserve_unique_name(_to_pascal_case(schema.get("title") or name), seen)
     required = set(schema.get("required", []))
     fields = []
     for prop_name, prop_schema in schema.get("properties", {}).items():
-        field_type = _convert(prop_schema, prop_name, namespace, seen)
+        field_type = _to_avro_type(prop_schema, prop_name, namespace, seen)
         field: dict[str, Any] = {"name": prop_name, "type": field_type}
         if isinstance(prop_schema, dict) and prop_schema.get("description"):
             field["doc"] = prop_schema["description"]
         if prop_name not in required:
-            field["type"] = _nullable(field_type)
+            field["type"] = _allow_null(field_type)
             field["default"] = None
         fields.append(field)
 
@@ -143,7 +143,10 @@ def _array(schema: dict, name: str, namespace: str, seen: set[str]) -> AvroType:
     items = schema.get("items")
     if not isinstance(items, dict):
         raise AvroConversionError("Array schema must declare an 'items' object.")
-    return {"type": "array", "items": _convert(items, f"{_pascal(name)}Item", namespace, seen)}
+    return {
+        "type": "array",
+        "items": _to_avro_type(items, f"{_to_pascal_case(name)}Item", namespace, seen),
+    }
 
 
 def _string(schema: dict) -> AvroType:
@@ -160,7 +163,7 @@ def _enum(schema: dict, name: str, namespace: str, seen: set[str]) -> AvroType:
     if valid and len(set(symbols)) == len(symbols):
         enum: dict[str, Any] = {
             "type": "enum",
-            "name": _unique(_pascal(name), seen),
+            "name": _reserve_unique_name(_to_pascal_case(name), seen),
             "symbols": list(symbols),
         }
         if namespace:
@@ -174,7 +177,7 @@ def _union(types: list, schema: dict, name: str, namespace: str, seen: set[str])
     base = {key: value for key, value in schema.items() if key not in ("type", "enum")}
     parts: list[AvroType] = []
     for json_type in types:
-        member = _convert({**base, "type": json_type}, name, namespace, seen)
+        member = _to_avro_type({**base, "type": json_type}, name, namespace, seen)
         if member not in parts:
             parts.append(member)
     # Avro convention: null first so a `null` default is valid.
@@ -183,19 +186,19 @@ def _union(types: list, schema: dict, name: str, namespace: str, seen: set[str])
     return parts
 
 
-def _nullable(avro_type: AvroType) -> AvroType:
+def _allow_null(avro_type: AvroType) -> AvroType:
     if isinstance(avro_type, list):
         return avro_type if "null" in avro_type else ["null", *avro_type]
     return ["null", avro_type]
 
 
-def _pascal(value: str) -> str:
+def _to_pascal_case(value: str) -> str:
     parts = re.split(r"[^0-9a-zA-Z]+", value)
     name = "".join(part[:1].upper() + part[1:] for part in parts if part)
     return name or "Record"
 
 
-def _unique(name: str, seen: set[str]) -> str:
+def _reserve_unique_name(name: str, seen: set[str]) -> str:
     candidate, index = name, 1
     while candidate in seen:
         index += 1
