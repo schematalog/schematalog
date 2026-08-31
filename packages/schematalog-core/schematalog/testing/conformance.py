@@ -48,11 +48,11 @@ through almost anything and so would check almost nothing."""
 SUCCESSOR_URL = "https://example.com/api/schemas/other/versions/2"
 
 
-def build_schema(name: str = "person", version: str = "1", description: str | None = None):
+def build_schema(name: str = "person", version: str = "1", description: str = ""):
     """A minimal valid `Schema`, with its publication identifier minted as usual."""
     return Schema(
         identity=SchemaIdentity(name=name, version=version),
-        description=SchemaDescription(text=description) if description else None,
+        description=SchemaDescription(text=description),
         json_schema=JsonSchemaDocument(document=dict(DOCUMENT)),
     )
 

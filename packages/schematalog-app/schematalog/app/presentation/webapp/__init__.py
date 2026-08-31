@@ -57,7 +57,7 @@ def _template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any]
         "deprecated": view.deprecated,
         "successor": str(view.successor) if view.successor is not None else None,
     }
-    if view.description is not None:
+    if view.description:
         data["description"] = view.description
     data["published_on"] = view.published_on
     return data, url
@@ -246,7 +246,7 @@ async def schemas_publish(
         {
             "name": view.name,
             "version": _suggest_next_version(view.version),
-            "description": view.description or "",
+            "description": view.description,
             # The stored document, not the one the detail page shows: that one carries a
             # stamped canonical `$id`, which publishing strips anyway - showing it in the
             # editor would imply it is part of the document the author maintains.
@@ -278,7 +278,7 @@ def _build_publish_command(fields: dict[str, str]) -> tuple[PublishCommand | Non
                 name=fields["name"],
                 version=fields["version"],
                 json_schema=document,
-                description=fields["description"] or None,
+                description=fields["description"],
             ),
             "",
         )

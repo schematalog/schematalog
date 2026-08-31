@@ -89,7 +89,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         values = {
             "name": schema.identity.name,
             "version": schema.identity.version,
-            "description": str(schema.description) if schema.description is not None else None,
+            "description": str(schema.description),
             "json_schema": schema.json_schema.document,
             "publication_id": schema.publication_id,
             "deprecated": schema.deprecated,
@@ -231,12 +231,10 @@ class SQLAlchemySchemaRepository(SchemaRepository):
 
     @staticmethod
     def _row_to_schema(row: sa.Row) -> Schema:
-        description = (
-            SchemaDescription(text=row.description) if row.description is not None else None
-        )
         return Schema(
             identity=SchemaIdentity(name=row.name, version=row.version),
-            description=description,
+            # `SchemaDescription` reads a NULL left by an older row as the empty description.
+            description=SchemaDescription(text=row.description),
             json_schema=JsonSchemaDocument(document=row.json_schema),
             publication_id=row.publication_id,
             deprecated=row.deprecated,

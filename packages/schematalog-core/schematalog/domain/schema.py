@@ -108,6 +108,14 @@ class SchemaDescription(ValueObject):
     @model_validator(mode="before")
     @classmethod
     def _wrap_raw(cls, value: Any) -> Any:
+        """Accept a raw string, and read a stored `None` as the empty description.
+
+        `None` arrives from records written before the field became non-nullable -
+        a nullable column, or JSON holding an explicit null. Coercing here rather
+        than in each backend means no read path has to remember to do it.
+        """
+        if value is None:
+            return {"text": ""}
         if isinstance(value, str):
             return {"text": value}
         return value
@@ -194,8 +202,14 @@ class Schema(BaseModel):
     """The domain identity field; excluded from serialization in favour of the
     `name` / `version` computed fields below, so the wire stays flat."""
     description: Annotated[
-        SchemaDescription | None, Field(description="Description of the schema.")
-    ] = None
+        SchemaDescription, Field(description="Description of the schema.")
+    ] = SchemaDescription(text="")
+    """Never `None`: a description is text, and text that was never written is empty
+    text. Nullable, it carried a distinction nothing acted on - every consumer treats
+    "absent" and "blank" alike - while obliging each of them to handle two states, and
+    it made a naive substring search read `str(None)` as the searchable word "none".
+    Contrast `successor`, which stays nullable because it references another version
+    rather than holding a value, so its absence is a fact about this one."""
     json_schema: Annotated[
         JsonSchemaDocument, Field(alias="schema", description="The JSON Schema document.")
     ]

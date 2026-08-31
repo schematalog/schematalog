@@ -65,7 +65,7 @@ def stamp_canonical_id(
     *,
     canonical_url: str,
     title: str,
-    description: str | None,
+    description: str,
     deprecated: bool = False,
 ) -> dict[str, Any]:
     """Return a copy of `document` advertising its canonical `$id` and lifecycle state.

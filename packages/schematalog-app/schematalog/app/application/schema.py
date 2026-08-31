@@ -50,7 +50,7 @@ class PublishCommand(BaseModel):
     name: SchemaName
     version: SchemaVersion
     json_schema: dict[str, Any]
-    description: str | None = None
+    description: str = ""
 
 
 class GetSchemaCommand(BaseModel):
@@ -117,7 +117,7 @@ class SchemaView(FrozenModel):
 
     name: SchemaName
     version: SchemaVersion
-    description: str | None
+    description: str
     document: dict[str, Any]
     publication_id: uuid.UUID
     published_on: datetime
@@ -129,7 +129,7 @@ class SchemaView(FrozenModel):
         return cls(
             name=schema.name,
             version=schema.version,
-            description=str(schema.description) if schema.description else None,
+            description=str(schema.description),
             document=schema.json_schema.document,
             publication_id=schema.publication_id,
             published_on=schema.published_on,
@@ -166,9 +166,7 @@ class SchemaService:
         try:
             schema = Schema(
                 identity=SchemaIdentity(name=command.name, version=command.version),
-                description=(
-                    SchemaDescription(text=command.description) if command.description else None
-                ),
+                description=SchemaDescription(text=command.description),
                 json_schema=JsonSchemaDocument(document=document),
                 # Ownership of an existing name is checked before the entity is built.
             )

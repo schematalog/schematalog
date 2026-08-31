@@ -31,7 +31,7 @@ schema = sa.Table(
     db_metadata,
     sa.Column("name", IdentifierColumn, primary_key=True),
     sa.Column("version", IdentifierColumn, primary_key=True),
-    sa.Column("description", sa.Text),
+    sa.Column("description", sa.Text, nullable=False, server_default=""),
     sa.Column("json_schema", AdaptiveJSONColumn, nullable=False),
     # The registry's sort key: a UUIDv7, whose high bits are a big-endian millisecond
     # timestamp, so ordering by it is publication order and `published_on` is derived

@@ -63,6 +63,15 @@ def test_schema_description_accepts_nested_dict():
     assert desc.text == "hello"
 
 
+def test_schema_description_reads_a_stored_null_as_empty_text():
+    """A record written before the field became non-nullable still loads.
+
+    The nullable column and the explicit JSON null both arrive as `None`, and every
+    backend's read path goes through here, so none of them has to coalesce.
+    """
+    assert SchemaDescription.model_validate(None).text == ""
+
+
 def test_schema_description_str_returns_text():
     desc = SchemaDescription(text="hello")
     assert str(desc) == "hello"
@@ -120,6 +129,11 @@ def _sample_payload() -> dict:
         "schema": {"$schema": "https://example.com/draft", "type": "object"},
         "publication_id": "01a02000-0000-7000-8000-000000000001",
     }
+
+
+def test_schema_defaults_an_absent_description_to_empty_text():
+    payload = {k: v for k, v in _sample_payload().items() if k != "description"}
+    assert str(Schema.deserialize(payload).description) == ""
 
 
 def test_schema_accepts_legacy_flat_wire_input():
