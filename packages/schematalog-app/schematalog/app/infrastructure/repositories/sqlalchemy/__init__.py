@@ -22,9 +22,9 @@ from schematalog.domain.schema import (
     SchemaIdentity,
     SchemaName,
     SchemaRepository,
+    SearchQuery,
     SuccessorReference,
     Unset,
-    normalise_query,
 )
 
 from . import tables
@@ -169,7 +169,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         for row in rows:
             yield row.name
 
-    async def list_latest(self, *, query: str | None = None) -> AsyncIterable[Schema]:
+    async def list_latest(self, *, query: SearchQuery | None = None) -> AsyncIterable[Schema]:
         await self._ensure_tables()
         # Correlated subquery: keep each name's latest by the same rule as `get_latest`.
         # ORDER BY ... LIMIT 1 rather than max(): PostgreSQL has no max() aggregate over
@@ -188,14 +188,13 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             .where(tables.schema.c.publication_id == latest_publication)
             .order_by(tables.schema.c.name.asc())
         )
-        normalised = normalise_query(query)
-        if normalised is not None:
+        if query is not None:
             # `lower()` not `ILIKE`: the latter is PostgreSQL-only and both backends
             # must answer identically, which holds only because names are ASCII.
             # TODO: revisit when descriptions become searchable - they are not.
             stmt = stmt.where(
                 sa.func.lower(tables.schema.c.name).like(
-                    _like_contains(normalised), escape=_LIKE_ESCAPE
+                    _like_contains(query.text), escape=_LIKE_ESCAPE
                 )
             )
         async with self.engine.connect() as conn:

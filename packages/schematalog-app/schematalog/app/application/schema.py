@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 from schematalog.app.application.exceptions import (
     DuplicateSchemaError,
     InvalidSchemaError,
+    InvalidSearchQueryError,
     InvalidSuccessorError,
     SchemaNotFoundError,
 )
@@ -23,6 +24,7 @@ from schematalog.common.validation import IncompatibleSchemaError, preprocess_sc
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
 
 # Re-exported for presentation, which must not import from `domain`.
+from schematalog.domain.schema import MAX_QUERY_LENGTH as MAX_QUERY_LENGTH
 from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
 from schematalog.domain.schema import (
     UNSET,
@@ -33,6 +35,7 @@ from schematalog.domain.schema import (
     SchemaName,
     SchemaRepository,
     SchemaVersion,
+    SearchQuery,
     SuccessorReference,
 )
 
@@ -73,7 +76,11 @@ class ListLatestCommand(BaseModel):
     query: str | None = None
     """Narrows the listing to schemas whose name contains this, ignoring case. `None` or
     blank selects everything, so an empty search box behaves as no search rather than as
-    a search for nothing. The repository owns the matching rule; see `matches_query`."""
+    a search for nothing.
+
+    Raw text rather than a `SearchQuery`: this is the bridge from external input, and
+    turning it into the validated value object is the service's job, so presentation
+    never has to catch a domain error."""
 
 
 class ListPredecessorsCommand(BaseModel):
@@ -271,9 +278,16 @@ class SchemaService:
         Yields:
             A view of each latest version, in ascending name order. Filtered rather than
             ranked, so the order is the same with a query as without one.
+
+        Raises:
+            InvalidSearchQueryError: If the query holds something no schema could match.
         """
         command = command or ListLatestCommand()
-        async for schema in self._repo.list_latest(query=command.query):
+        try:
+            query = SearchQuery.parse(command.query)
+        except ValidationError as exc:
+            raise InvalidSearchQueryError(str(exc)) from exc
+        async for schema in self._repo.list_latest(query=query):
             yield SchemaView.from_schema(schema)
 
     async def list_schema_versions(

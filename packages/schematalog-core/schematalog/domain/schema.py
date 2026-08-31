@@ -379,18 +379,15 @@ class Schema(BaseModel):
         return cls.model_validate(raw)
 
 
-def normalise_query(query: str | None) -> str | None:
-    """A search query as matching sees it, or `None` when it selects everything.
+MAX_QUERY_LENGTH = 128
+"""How long a search query may be.
 
-    Blank and whitespace-only queries are absent queries. `?q=` is what an empty search
-    box submits, and answering it with nothing would be a worse answer than answering it
-    with everything.
-    """
-    if query is None:
-        return None
-    normalised = query.strip().casefold()
-    return normalised or None
-
+Its own bound rather than a share of `MAX_IDENTIFIER_LENGTH`: how long a stored name
+may be and how much someone may type into a search box are unrelated questions that
+should be free to move apart. The number is a resource guard, not a semantic boundary -
+no real search approaches it - so it is set at the generous end, where being wrong
+costs nothing, rather than the tight end, where being wrong rejects a legitimate search.
+"""
 
 QUERY_PATTERN = r"^\s*[0-9a-zA-Z\-_.]*\s*$"
 """The characters a search query may contain: exactly those `NAME_PATTERN` allows,
@@ -418,22 +415,71 @@ perfectly meaningful and this constraint has to widen with it.
 """
 
 
-def matches_query(schema: Schema, query: str | None) -> bool:
-    """Whether `schema` satisfies the search guarantee for `query`.
+class SearchQuery(ValueObject):
+    """A validated search query: what the registry was asked to find.
 
-    The guarantee is deliberately narrow - a case-insensitive substring of the name -
-    because the same interface sits over a Python scan, a SQL `LIKE`, and one day
-    something with an index, and a caller has to be able to rely on the answer being the
-    same wherever it runs. A faster implementation is allowed; a different one is not.
-    Stemming, fuzzy matching and relevance ordering are all *differences*, which is why
-    none of them are promised (see `DECISIONS.md`).
+    A value rather than an entity. Two searches for the same text are the same
+    question and must return the same answer, so they are interchangeable and nothing
+    refers to one afterwards - value semantics are what the search guarantee is made of.
+    A *saved* search would be a different thing entirely, an entity holding one of
+    these alongside a name and a description; see `DECISIONS.md`.
+
+    Never empty: the absence of a query is spelled `None`, so a backend has one state
+    to check rather than two ways of saying "everything". `parse` is the boundary
+    entry point that maps a blank box onto that `None`.
+
+    The text is normalised on the way in - trimmed and casefolded - so equality agrees
+    with behaviour: two queries that always return the same rows *are* the same query.
+    Presentation redisplays what the reader typed from the request, not from here.
+    """
+
+    text: Annotated[
+        str, Field(pattern=QUERY_PATTERN, min_length=1, max_length=MAX_QUERY_LENGTH)
+    ]
+    """Trimmed and casefolded, so it is the form matching compares against.
 
     `casefold` rather than `lower`: it is the comparison Unicode defines for this, and
-    although `NAME_PATTERN` admits only ASCII today, the fields matched here are expected
-    to grow to include the description, which is free text.
+    although `NAME_PATTERN` admits only ASCII today, the fields matched here are
+    expected to grow to include the description, which is free text.
     """
-    normalised = normalise_query(query)
-    return normalised is None or normalised in schema.name.casefold()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalise(cls, value: Any) -> Any:
+        """Accept a raw string, trimmed and casefolded."""
+        if isinstance(value, str):
+            return {"text": value.strip().casefold()}
+        if isinstance(value, Mapping) and isinstance(value.get("text"), str):
+            return {**value, "text": value["text"].strip().casefold()}
+        return value
+
+    @classmethod
+    def parse(cls, raw: str | None) -> SearchQuery | None:
+        """A query for `raw`, or `None` when it selects everything.
+
+        Blank and whitespace-only queries are absent queries. `?q=` is what an empty
+        search box submits, and answering it with nothing would be a worse answer than
+        answering it with everything.
+
+        Raises:
+            ValidationError: If `raw` holds a character no name may hold, or is longer
+                than `MAX_QUERY_LENGTH`.
+        """
+        if raw is None or not raw.strip():
+            return None
+        return cls(text=raw)
+
+    def matches(self, schema: Schema) -> bool:
+        """Whether `schema` satisfies the search guarantee for this query.
+
+        The guarantee is deliberately narrow - a case-insensitive substring of the
+        name - because the same interface sits over a Python scan, a SQL `LIKE`, and one
+        day something with an index, and a caller has to be able to rely on the answer
+        being the same wherever it runs. A faster implementation is allowed; a different
+        one is not. Stemming, fuzzy matching and relevance ordering are all
+        *differences*, which is why none of them are promised (see `DECISIONS.md`).
+        """
+        return self.text in schema.name.casefold()
 
 
 class SchemaRepository(ABC):
@@ -455,10 +501,10 @@ class SchemaRepository(ABC):
     publication order, so a backend must store it in a form that preserves that ordering.
 
     Searching is defined by its guarantee rather than its mechanism: a backend may answer
-    a query faster than the default here, never differently. A query reaching a
-    repository has already been validated against `QUERY_PATTERN` by the layer above, so
-    it holds only characters a name may hold - which is what keeps a driver from ever
-    being handed something it cannot bind.
+    a query faster than the default here, never differently. A `SearchQuery` is valid by
+    construction - it holds only characters a name may hold, within a bounded length - so
+    a backend can bind one into a driver without checking it, and the absence of a query
+    is always `None` rather than an empty one.
     """
 
     @abstractmethod
@@ -533,11 +579,11 @@ class SchemaRepository(ABC):
             raise UnknownSchemaError(schema_name)
         return newest
 
-    async def list_latest(self, *, query: str | None = None) -> AsyncIterable[Schema]:
+    async def list_latest(self, *, query: SearchQuery | None = None) -> AsyncIterable[Schema]:
         """The latest version of every schema, in name-ascending order.
 
         "Latest" means the same thing as in `get_latest`, per name. `query` narrows the
-        result to versions satisfying `matches_query`; `None` or blank selects everything.
+        result to versions it matches; `None` selects everything.
 
         Filtering costs nothing extra here, since this already fetches each name's
         latest - so a backend overrides this to push the filter into the store, not to
@@ -545,7 +591,7 @@ class SchemaRepository(ABC):
         """
         async for schema_name in self.list_names():
             schema = await self.get_latest(schema_name)
-            if matches_query(schema, query):
+            if query is None or query.matches(schema):
                 yield schema
 
     async def list_predecessors(self, successor_url: str) -> AsyncIterable[Schema]:

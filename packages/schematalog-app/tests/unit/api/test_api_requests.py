@@ -5,6 +5,8 @@ import pytest
 from starlette.testclient import TestClient
 import yaml
 
+from schematalog.app.application.schema import MAX_QUERY_LENGTH
+
 API_URL_ROOT = "api/"
 
 
@@ -295,10 +297,18 @@ def test_listing_schemas_accepts_every_character_a_name_may_contain(client, quer
     assert client.get("/api/schemas", params={"q": query}).status_code == HTTPStatus.OK
 
 
-def test_listing_schemas_answers_an_absurdly_long_query_without_complaint(client):
-    """Long is not the same as invalid: it is legal, matches nothing, and is bounded
-    in practice by how long a URL a server will accept."""
-    response = client.get("/api/schemas", params={"q": "x" * 5000})
+def test_listing_schemas_refuses_a_query_longer_than_the_cap(client):
+    """A resource guard, not a semantic one.
+
+    No real search approaches the cap, so refusing past it costs nobody a legitimate
+    query while keeping an unbounded string out of a `LIKE` pattern.
+    """
+    response = client.get("/api/schemas", params={"q": "x" * (MAX_QUERY_LENGTH + 1)})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_listing_schemas_accepts_a_query_at_the_cap(client):
+    response = client.get("/api/schemas", params={"q": "x" * MAX_QUERY_LENGTH})
     assert response.status_code == HTTPStatus.OK
     assert response.json()["schemas"] == []
 

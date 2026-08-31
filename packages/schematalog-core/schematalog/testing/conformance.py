@@ -38,6 +38,7 @@ from schematalog.domain.schema import (
     SchemaDescription,
     SchemaIdentity,
     SchemaRepository,
+    SearchQuery,
     SuccessorReference,
 )
 from schematalog.testing.samples import example_document
@@ -255,36 +256,48 @@ class SchemaRepositoryConformance:
         await repository.add(build_schema(name="billing.invoice", version="1"))
         await repository.add(build_schema(name="billing.payment", version="1"))
         await repository.add(build_schema(name="shipping.parcel", version="1"))
-        assert [s.name async for s in repository.list_latest(query="billing")] == [
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="billing"))
+        ] == [
             "billing.invoice",
             "billing.payment",
         ]
 
     async def test_list_latest_matches_a_substring_anywhere_in_the_name(self, repository):
         await repository.add(build_schema(name="billing.invoice", version="1"))
-        assert [s.name async for s in repository.list_latest(query="voi")] == [
-            "billing.invoice"
-        ]
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="voi"))
+        ] == ["billing.invoice"]
 
     async def test_list_latest_matches_regardless_of_case(self, repository):
         await repository.add(build_schema(name="Billing", version="1"))
         for query in ("billing", "BILLING", "BiLLiNg"):
-            assert [s.name async for s in repository.list_latest(query=query)] == ["Billing"]
+            assert [
+                s.name async for s in repository.list_latest(query=SearchQuery(text=query))
+            ] == ["Billing"]
 
     async def test_list_latest_treats_a_blank_query_as_no_query(self, repository):
-        """An empty search box selects everything, rather than nothing."""
+        """An empty search box selects everything, rather than nothing.
+
+        `SearchQuery.parse` maps every blank spelling onto `None`, so a backend only
+        ever has to handle "no query" one way.
+        """
         await repository.add(build_schema(name="alpha", version="1"))
         for query in (None, "", "   "):
-            assert [s.name async for s in repository.list_latest(query=query)] == ["alpha"]
+            assert [
+                s.name async for s in repository.list_latest(query=SearchQuery.parse(query))
+            ] == ["alpha"]
 
     async def test_list_latest_yields_nothing_when_the_query_matches_nothing(self, repository):
         await repository.add(build_schema(name="alpha", version="1"))
-        assert [s async for s in repository.list_latest(query="omega")] == []
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="omega"))] == []
 
     async def test_list_latest_keeps_its_name_order_when_filtering(self, repository):
         for name in ("gamma.one", "alpha.one", "beta.one"):
             await repository.add(build_schema(name=name, version="1"))
-        assert [s.name async for s in repository.list_latest(query="one")] == [
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="one"))
+        ] == [
             "alpha.one",
             "beta.one",
             "gamma.one",
@@ -298,7 +311,7 @@ class SchemaRepositoryConformance:
         different one. Being different is what is disallowed.
         """
         await repository.add(build_schema(name="order", version="1"))
-        assert [s async for s in repository.list_latest(query="orders")] == []
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="orders"))] == []
 
     async def test_list_latest_treats_sql_wildcards_as_ordinary_characters(self, repository):
         """`_` and `%` are legal in a name and mean nothing special in a query.
@@ -308,15 +321,18 @@ class SchemaRepositoryConformance:
         """
         await repository.add(build_schema(name="a_b", version="1"))
         await repository.add(build_schema(name="axb", version="1"))
-        assert [s.name async for s in repository.list_latest(query="a_b")] == ["a_b"]
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="a_b"))
+        ] == ["a_b"]
 
     async def test_list_latest_searches_only_the_latest_version(self, repository):
         """One hit per name, not one per version - the filter narrows the same listing."""
         await repository.add(build_schema(name="alpha", version="1"))
         await repository.add(build_schema(name="alpha", version="2"))
-        assert [(s.name, s.version) async for s in repository.list_latest(query="alpha")] == [
-            ("alpha", "2")
-        ]
+        assert [
+            (s.name, s.version)
+            async for s in repository.list_latest(query=SearchQuery(text="alpha"))
+        ] == [("alpha", "2")]
 
     # ---- list_predecessors (derived, may be overridden) -----------------------------
 

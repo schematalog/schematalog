@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
 from schematalog.app.application.schema import (
+    MAX_QUERY_LENGTH,
     QUERY_PATTERN,
     GetSchemaCommand,
     ListLatestCommand,
@@ -58,6 +59,7 @@ async def get_schemas(
         str | None,
         Query(
             pattern=QUERY_PATTERN,
+            max_length=MAX_QUERY_LENGTH,
             description=(
                 "Narrow the listing to schemas whose name contains this, ignoring case. "
                 "Matching is a plain substring: it does not stem, spell-correct or rank, "

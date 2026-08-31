@@ -6,12 +6,14 @@ from pydantic import ValidationError
 import pytest
 
 from schematalog.domain.schema import (
+    MAX_QUERY_LENGTH,
     NAME_PATTERN,
     QUERY_PATTERN,
     JsonSchemaDocument,
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SearchQuery,
     SuccessorReference,
     ValueObject,
 )
@@ -273,3 +275,57 @@ def test_query_pattern_admits_exactly_what_a_name_admits(character):
     in_a_name = re.fullmatch(NAME_PATTERN, f"a{character}") is not None
     in_a_query = re.fullmatch(QUERY_PATTERN, character) is not None
     assert in_a_name == in_a_query or character.isspace()
+
+
+def test_search_query_normalises_so_equality_agrees_with_matching():
+    """Two queries that always return the same rows are the same query.
+
+    Trimming and casefolding on the way in is what makes that true, and it is why a
+    query is a value: nothing distinguishes two searches for the same thing.
+    """
+    assert SearchQuery(text="  Order  ") == SearchQuery(text="order")
+
+
+def test_search_query_parse_reads_every_blank_spelling_as_no_query():
+    """The absence of a query has one spelling, so a backend checks one thing."""
+    for blank in (None, "", "   ", "\t"):
+        assert SearchQuery.parse(blank) is None
+
+
+def test_search_query_parse_builds_a_query_from_real_text():
+    parsed = SearchQuery.parse("Billing")
+    assert parsed is not None
+    assert parsed.text == "billing"
+
+
+def test_search_query_is_never_empty():
+    """`parse` maps blank onto `None`, so an empty query must not be constructible."""
+    with pytest.raises(ValidationError):
+        SearchQuery(text="")
+
+
+def test_search_query_refuses_text_longer_than_the_cap():
+    with pytest.raises(ValidationError):
+        SearchQuery(text="x" * (MAX_QUERY_LENGTH + 1))
+
+
+def test_search_query_accepts_text_at_the_cap():
+    assert SearchQuery(text="x" * MAX_QUERY_LENGTH).text == "x" * MAX_QUERY_LENGTH
+
+
+@pytest.mark.parametrize("query", ["bill ing", "order!", "\x00", "\ud800"])
+def test_search_query_refuses_what_no_name_could_hold(query):
+    """Rejected rather than answered with an empty result.
+
+    An empty result would read as "nothing found" for what is really "that cannot be
+    searched for", and a character no database can bind would otherwise raise on one
+    backend and quietly return nothing on another.
+    """
+    with pytest.raises(ValidationError):
+        SearchQuery(text=query)
+
+
+def test_search_query_matches_a_substring_of_the_name_ignoring_case():
+    schema = Schema.model_validate({**_sample_payload(), "name": "Billing"})
+    assert SearchQuery(text="illi").matches(schema)
+    assert not SearchQuery(text="shipping").matches(schema)

@@ -7,7 +7,7 @@ ordering, and a null byte that returned nothing on one backend and raised on ano
 so the case for generating the examples rather than picking them is not hypothetical.
 
 The oracle is the domain's own predicate: whatever a backend does underneath, its answer
-must equal filtering the stored schemas through `matches_query` and sorting by name.
+must equal filtering the stored schemas through `SearchQuery.matches` and sorting by name.
 That is the "faster, never different" promise written as something a machine can check.
 """
 
@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from schematalog.app.infrastructure.repositories.memory import MemorySchemaRepository
 from schematalog.app.infrastructure.repositories.sqlalchemy import SQLAlchemySchemaRepository
-from schematalog.domain.schema import Schema, matches_query
+from schematalog.domain.schema import Schema, SearchQuery
 
 # Deliberately tiny, and short: near misses are what break a SQL `LIKE`, and a wider
 # alphabet never generates them. Do not widen it without re-checking it still fails
@@ -51,18 +51,23 @@ async def _answers(repository, schemas, query):
     return [s.name async for s in repository.list_latest(query=query)]
 
 
+def _matches(schema, query: SearchQuery | None) -> bool:
+    return query is None or query.matches(schema)
+
+
 @settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(names=st.lists(names, min_size=0, max_size=6, unique=True), query=queries)
 def test_every_backend_answers_a_search_the_same_way(names, query):
     async def run():
         schemas = [build(name) for name in names]
-        expected = sorted(s.name for s in schemas if matches_query(s, query))
+        parsed = SearchQuery.parse(query)
+        expected = sorted(s.name for s in schemas if _matches(s, parsed))
 
-        memory = await _answers(MemorySchemaRepository(), schemas, query)
+        memory = await _answers(MemorySchemaRepository(), schemas, parsed)
         sql = await _answers(
             SQLAlchemySchemaRepository(create_async_engine("sqlite+aiosqlite:///:memory:")),
             schemas,
-            query,
+            parsed,
         )
         assert memory == expected, "the in-Python backend disagrees with the predicate"
         assert sql == expected, "the SQL pushdown disagrees with the predicate"
