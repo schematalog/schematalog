@@ -1,13 +1,18 @@
 """Direct unit tests for the value objects and Schema wire-format gymnastics."""
 
+import re
+
 from pydantic import ValidationError
 import pytest
 
 from schematalog.domain.schema import (
+    NAME_PATTERN,
+    QUERY_PATTERN,
     JsonSchemaDocument,
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SearchQuery,
     SuccessorReference,
     ValueObject,
 )
@@ -116,6 +121,11 @@ def _sample_payload() -> dict:
         "schema": {"$schema": "https://example.com/draft", "type": "object"},
         "publication_id": "01a02000-0000-7000-8000-000000000001",
     }
+
+
+def test_schema_defaults_an_absent_description_to_empty_text():
+    payload = {k: v for k, v in _sample_payload().items() if k != "description"}
+    assert str(Schema.deserialize(payload).description) == ""
 
 
 def test_schema_accepts_legacy_flat_wire_input():
@@ -239,3 +249,80 @@ def test_with_metadata_sets_clears_and_leaves_successor():
     assert with_succ.successor == ref
     assert with_succ.with_metadata(successor=None).successor is None  # explicit clear
     assert with_succ.with_metadata(deprecated=True).successor == ref  # UNSET leaves it
+
+
+@pytest.mark.parametrize(
+    "character", [chr(c) for c in range(32, 127)] + ["é", "\x00", "\ud800"]
+)
+def test_query_pattern_admits_exactly_what_a_name_admits(character):
+    """The two patterns must not drift apart.
+
+    A query is matched against names, so any character a name can hold must be
+    searchable and any character it cannot must be rejected. They are written
+    separately - one has an anchored first character, the other allows surrounding
+    whitespace - so nothing but this keeps them in step.
+    """
+    in_a_name = re.fullmatch(NAME_PATTERN, f"a{character}") is not None
+    in_a_query = re.fullmatch(QUERY_PATTERN, character) is not None
+    assert in_a_name == in_a_query or character.isspace()
+
+
+def test_search_query_splits_on_whitespace_into_terms():
+    assert SearchQuery(text="billing invoice").terms == ("billing", "invoice")
+
+
+def test_search_query_normalises_so_equality_agrees_with_matching():
+    """Two queries that always return the same rows are the same query.
+
+    Trimming and casefolding on the way in is what makes that true, and it is why a
+    query is a value: nothing distinguishes two searches for the same thing.
+    """
+    assert SearchQuery(text="  Order  ") == SearchQuery(text="order")
+    # Repeats and runs of whitespace change nothing about which schemas match.
+    assert SearchQuery(text="a  b") == SearchQuery(text="a b") == SearchQuery(text="a b a")
+
+
+def test_search_query_parse_reads_every_blank_spelling_as_no_query():
+    """The absence of a query has one spelling, so a backend checks one thing."""
+    for blank in (None, "", "   ", "\t"):
+        assert SearchQuery.parse(blank) is None
+
+
+def test_search_query_parse_builds_a_query_from_real_text():
+    parsed = SearchQuery.parse("Billing")
+    assert parsed is not None
+    assert parsed.text == "billing"
+
+
+def test_search_query_is_never_empty():
+    """`parse` maps blank onto `None`, so an empty query must not be constructible."""
+    with pytest.raises(ValidationError):
+        SearchQuery(text="")
+
+
+def test_search_query_does_not_bound_its_own_length():
+    """Length is a transport limit, applied where the request is accepted.
+
+    The domain constrains what a query *means* - its alphabet, and that it is never
+    empty. How much someone may type is a judgement about requests, not about matching.
+    """
+    assert SearchQuery(text="x" * 5000).text == "x" * 5000
+
+
+@pytest.mark.parametrize("query", ["order!", "ordér", "\x00", "\ud800"])
+def test_search_query_refuses_what_it_cannot_search_for(query):
+    """Rejected rather than answered with an empty result.
+
+    An empty result would read as "nothing found" for what is really "that cannot be
+    searched for", and a character no database can bind would otherwise raise on one
+    backend and quietly return nothing on another. Non-ASCII is refused because no two
+    stores fold its case alike, not because it is meaningless.
+    """
+    with pytest.raises(ValidationError):
+        SearchQuery(text=query)
+
+
+def test_search_query_matches_a_substring_of_the_name_ignoring_case():
+    schema = Schema.model_validate({**_sample_payload(), "name": "Billing"})
+    assert SearchQuery(text="illi").matches(schema)
+    assert not SearchQuery(text="shipping").matches(schema)

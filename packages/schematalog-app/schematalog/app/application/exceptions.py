@@ -26,6 +26,14 @@ class InvalidSchemaError(ApplicationError):
         super().__init__(message)
 
 
+class InvalidSearchQueryError(ApplicationError):
+    """The search query holds something no schema could match (-> 422).
+
+    Answering it with an empty result would look like "nothing found" for what is
+    really "that cannot be searched for", leaving the caller to guess which.
+    """
+
+
 class InvalidSuccessorError(ApplicationError):
     """The requested successor reference is not acceptable (-> 422).
 

@@ -22,6 +22,7 @@ from schematalog.domain.schema import (
     SchemaIdentity,
     SchemaName,
     SchemaRepository,
+    SearchQuery,
     SuccessorReference,
     Unset,
 )
@@ -29,7 +30,7 @@ from schematalog.domain.schema import (
 from . import tables
 
 
-def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
+def _build_latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
     """The ORDER BY implementing the `get_latest` contract, newest-current-first.
 
     Takes the table or alias to read from, so the same expression serves both the direct
@@ -43,6 +44,47 @@ def _latest_order(source: sa.FromClause) -> tuple[sa.ColumnElement, ...]:
         else_=0,
     )
     return (current.desc(), source.c.publication_id.desc())
+
+
+_LIKE_ESCAPE = "\\"
+
+
+def _build_term_clauses(query: SearchQuery) -> list[sa.ColumnElement[bool]]:
+    """One clause per term, each requiring it in the name or the description.
+
+    ANDed by `where`, so every term must be found but not all in the same field. The
+    whole query is one scan with a predicate per row, not a statement per term.
+
+    `lower()` not `ILIKE`: the latter is PostgreSQL-only, and both backends must answer
+    identically. `coalesce` because an older row's description may still be NULL, and
+    `NULL LIKE ...` is NULL, which would drop the row from an OR that should have
+    matched on the name.
+    """
+    return [
+        sa.or_(
+            sa.func.lower(tables.schema.c.name).like(pattern, escape=_LIKE_ESCAPE),
+            sa.func.lower(sa.func.coalesce(tables.schema.c.description, "")).like(
+                pattern, escape=_LIKE_ESCAPE
+            ),
+        )
+        for pattern in (_build_contains_pattern(term) for term in query.terms)
+    ]
+
+
+def _build_contains_pattern(query: str) -> str:
+    """A `LIKE` pattern matching `query` anywhere in a value, wildcards defanged.
+
+    `%` and `_` are wildcards to `LIKE`, and both are legal in a schema name - so a
+    query interpolated straight into a pattern quietly means something else, and `a_b`
+    would match `axb`. The conformance suite pins that case precisely because the bug is
+    invisible until someone searches for a name with an underscore in it.
+    """
+    escaped = (
+        query.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+        .replace("%", f"{_LIKE_ESCAPE}%")
+        .replace("_", f"{_LIKE_ESCAPE}_")
+    )
+    return f"%{escaped}%"
 
 
 class SQLAlchemySchemaRepository(SchemaRepository):
@@ -69,7 +111,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         values = {
             "name": schema.identity.name,
             "version": schema.identity.version,
-            "description": str(schema.description) if schema.description is not None else None,
+            "description": str(schema.description),
             "json_schema": schema.json_schema.document,
             "publication_id": schema.publication_id,
             "deprecated": schema.deprecated,
@@ -132,7 +174,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         stmt = (
             sa.select(tables.schema)
             .where(tables.schema.c.name == schema_name)
-            .order_by(*_latest_order(tables.schema))
+            .order_by(*_build_latest_order(tables.schema))
             .limit(1)
         )
         async with self.engine.connect() as conn:
@@ -149,7 +191,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         for row in rows:
             yield row.name
 
-    async def list_latest(self) -> AsyncIterable[Schema]:
+    async def list_latest(self, *, query: SearchQuery | None = None) -> AsyncIterable[Schema]:
         await self._ensure_tables()
         # Correlated subquery: keep each name's latest by the same rule as `get_latest`.
         # ORDER BY ... LIMIT 1 rather than max(): PostgreSQL has no max() aggregate over
@@ -159,7 +201,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         latest_publication = (
             sa.select(inner.c.publication_id)
             .where(inner.c.name == tables.schema.c.name)
-            .order_by(*_latest_order(inner))
+            .order_by(*_build_latest_order(inner))
             .limit(1)
             .scalar_subquery()
         )
@@ -168,6 +210,8 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             .where(tables.schema.c.publication_id == latest_publication)
             .order_by(tables.schema.c.name.asc())
         )
+        if query is not None:
+            stmt = stmt.where(*_build_term_clauses(query))
         async with self.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         for row in rows:
@@ -201,12 +245,9 @@ class SQLAlchemySchemaRepository(SchemaRepository):
 
     @staticmethod
     def _row_to_schema(row: sa.Row) -> Schema:
-        description = (
-            SchemaDescription(text=row.description) if row.description is not None else None
-        )
         return Schema(
             identity=SchemaIdentity(name=row.name, version=row.version),
-            description=description,
+            description=SchemaDescription(text=row.description),
             json_schema=JsonSchemaDocument(document=row.json_schema),
             publication_id=row.publication_id,
             deprecated=row.deprecated,

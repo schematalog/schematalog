@@ -1,6 +1,6 @@
 """Request and response models for the JSON API.
 
-Wire-shaped DTOs that FastAPI sees on the route boundary — deliberately flat.
+Wire-shaped DTOs that FastAPI sees on the route boundary - deliberately flat.
 They map from the application's `SchemaView` (never the domain entity) via
 `SchemaResponse.from_view`, so presentation depends only on the application layer.
 """
@@ -27,7 +27,7 @@ class SchemaRequest(FrozenModel):
 
     name: Annotated[SchemaName, Field(description="Unique name of the schema.")]
     version: Annotated[SchemaVersion, Field(description="Version of the schema.")]
-    description: Annotated[str | None, Field(description="Description of the schema.")] = None
+    description: Annotated[str, Field(description="Description of the schema.")] = ""
     json_schema: Annotated[
         dict[str, Any], Field(alias="schema", description="The JSON Schema document.")
     ]
@@ -68,9 +68,9 @@ class SchemaResponse(FrozenModel):
     version: Annotated[SchemaVersion, Field(description="Version of the schema.")]
     canonical_url: Annotated[
         str,
-        Field(description="The schema's permalink — also stamped as `$id` inside `schema`."),
+        Field(description="The schema's permalink - also stamped as `$id` inside `schema`."),
     ]
-    description: Annotated[str | None, Field(description="Description of the schema.")] = None
+    description: Annotated[str, Field(description="Description of the schema.")] = ""
     json_schema: Annotated[
         dict[str, Any], Field(alias="schema", description="The JSON Schema document.")
     ]

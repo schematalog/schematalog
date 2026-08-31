@@ -15,6 +15,7 @@ from schematalog.app.application.exceptions import (
     ApplicationError,
     DuplicateSchemaError,
     InvalidSchemaError,
+    InvalidSearchQueryError,
     InvalidSuccessorError,
     SchemaNotFoundError,
 )
@@ -87,6 +88,7 @@ _HTTP_STATUS: dict[type[ApplicationError], HTTPStatus] = {
     SchemaNotFoundError: HTTPStatus.NOT_FOUND,
     DuplicateSchemaError: HTTPStatus.CONFLICT,
     InvalidSchemaError: HTTPStatus.UNPROCESSABLE_ENTITY,
+    InvalidSearchQueryError: HTTPStatus.UNPROCESSABLE_ENTITY,
     InvalidSuccessorError: HTTPStatus.UNPROCESSABLE_ENTITY,
 }
 

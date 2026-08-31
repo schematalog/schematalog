@@ -11,7 +11,10 @@ The name is a portmanteau of *schemata* (the original plural of "schema") and
 
 A stored schema is identified by a **`(name, version)`** pair:
 
-- **`name`** groups every version of one logical schema (for example `address`).
+- **`name`** groups every version of one logical schema (for example `address`). Names
+  are flat and unique per instance; a dotted name like `billing.address` is a
+  [convention](api/publishing.md#naming-and-the-dot-convention), not a hierarchy the
+  registry knows about.
 - **`version`** is an opaque string you choose (`1.0.0`, `2025-06`, `v3`, …).
   Schematalog never compares version strings: the *latest* version of a name is the
   most recently **published** one, which is why `10.0` does not sort below `9.0`.

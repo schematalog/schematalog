@@ -22,26 +22,26 @@ LEXERS: dict[str, type[Lexer]] = {
 """Lexers for the formats the detail page renders. Avro is JSON, so it reuses that one."""
 
 
-def as_json(schema: Any) -> str:
+def to_json(schema: Any) -> str:
     if isinstance(schema, BaseModel):
         schema = schema.model_dump(mode="json", by_alias=True)
     return json.dumps(schema, indent=2)
 
 
-def as_yaml(schema: Any) -> str:
+def to_yaml(schema: Any) -> str:
     if isinstance(schema, BaseModel):
         schema = schema.model_dump(mode="json", by_alias=True)
     return yaml.safe_dump(schema, indent=2)
 
 
-def as_avro(schema: Any, namespace: str = "") -> str:
+def to_avro(schema: Any, namespace: str = "") -> str:
     if isinstance(schema, BaseModel):
         schema = schema.model_dump(mode="json", by_alias=True)
     name = schema.get("title") or "document"
-    return as_json(avroform.to_avro(schema, name=name, namespace=namespace))
+    return to_json(avroform.to_avro(schema, name=name, namespace=namespace))
 
 
-def as_pydantic(schema: Any) -> str:
+def to_pydantic(schema: Any) -> str:
     if isinstance(schema, BaseModel):
         schema = schema.model_dump(mode="json", by_alias=True)
     if isinstance(schema, dict) and "$id" in schema:
@@ -54,7 +54,7 @@ def as_pydantic(schema: Any) -> str:
         DataModelType.PydanticV2BaseModel, target_python_version=PythonVersion.PY_311
     )
     parser = JsonSchemaParser(
-        as_json(schema),
+        to_json(schema),
         data_model_type=data_model_types.data_model,
         data_model_root_type=data_model_types.root_model,
         data_model_field_type=data_model_types.field_model,

@@ -5,6 +5,8 @@ import pytest
 from starlette.testclient import TestClient
 import yaml
 
+from schematalog.app.wiring.config import settings
+
 API_URL_ROOT = "api/"
 
 
@@ -185,3 +187,157 @@ async def test_all_versions_of_a_schema_are_returned(client, example_schema):
     for index, schema in enumerate(read_schemas["schemas"]):
         assert schema["name"] == schema_name
         assert schema["version"] == expected_versions[index]
+
+
+def test_listing_schemas_filters_by_a_name_query(client, example_schema):
+    """`?q=` narrows the collection rather than being a separate search resource."""
+    for name in ("billing.invoice", "billing.payment", "shipping.parcel"):
+        client.post("/api/schemas", json={**example_schema, "name": name})
+
+    response = client.get("/api/schemas", params={"q": "billing"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert [s["name"] for s in response.json()["schemas"]] == [
+        "billing.invoice",
+        "billing.payment",
+    ]
+
+
+def test_listing_schemas_ignores_a_blank_query(client, example_schema):
+    """An empty search box selects everything, rather than nothing."""
+    client.post("/api/schemas", json=example_schema)
+
+    for params in ({}, {"q": ""}, {"q": "   "}):
+        response = client.get("/api/schemas", params=params)
+        assert [s["name"] for s in response.json()["schemas"]] == [example_schema["name"]]
+
+
+def test_listing_schemas_keeps_its_order_when_filtered(client, example_schema):
+    """Filtered, not ranked: the order is the same with a query as without one."""
+    for name in ("gamma.one", "alpha.one", "beta.one"):
+        client.post("/api/schemas", json={**example_schema, "name": name})
+
+    response = client.get("/api/schemas", params={"q": "one"})
+
+    assert [s["name"] for s in response.json()["schemas"]] == [
+        "alpha.one",
+        "beta.one",
+        "gamma.one",
+    ]
+
+
+@pytest.mark.parametrize(
+    "query",
+    (
+        "ordér",
+        "İ",
+        "\U0001f600",
+        "'; DROP TABLE schema; --",
+        "' OR 1=1 --",
+        '"',
+        "or\x00der",
+        "50%",
+        "a\\b",
+        "<script>alert(1)</script>",
+        "../../etc/passwd",
+    ),
+    ids=(
+        "non-ascii",
+        "turkish dotted I",
+        "emoji",
+        "sql injection",
+        "sql tautology",
+        "double quote",
+        "null byte",
+        "percent",
+        "backslash",
+        "script tag",
+        "path traversal",
+    ),
+)
+def test_listing_schemas_rejects_a_query_no_name_could_contain(client, query):
+    """Rejected rather than answered with an empty result.
+
+    Saying so beats returning nothing and leaving the caller to guess why - and it keeps
+    strings no database can store from reaching a driver at all. A null byte is not
+    valid in PostgreSQL `text`, so before this was validated the same request answered
+    `200 []` on SQLite and raised on PostgreSQL.
+
+    Non-ASCII is refused for a different reason than the rest: it is perfectly
+    meaningful against a description, but no two stores fold its case alike, so allowing
+    it would break the promise that every backend answers the same.
+    """
+    assert (
+        client.get("/api/schemas", params={"q": query}).status_code
+        == HTTPStatus.UNPROCESSABLE_ENTITY
+    )
+
+
+@pytest.mark.parametrize(
+    "query",
+    ("billing.invoice", "billing", "BILLING", "order-2", "a_b", "1", ".", "-", "_", ""),
+    ids=(
+        "full name",
+        "prefix",
+        "upper case",
+        "hyphen",
+        "underscore",
+        "digit",
+        "dot alone",
+        "hyphen alone",
+        "underscore alone",
+        "empty",
+    ),
+)
+def test_listing_schemas_accepts_every_character_a_name_may_contain(client, query):
+    """The accepting half of the rule: anything a name can hold is searchable."""
+    assert client.get("/api/schemas", params={"q": query}).status_code == HTTPStatus.OK
+
+
+def test_listing_schemas_refuses_a_query_longer_than_the_cap(client):
+    """A resource guard, not a semantic one.
+
+    No real search approaches the cap, so refusing past it costs nobody a legitimate
+    query while keeping an unbounded string out of a `LIKE` pattern.
+    """
+    response = client.get("/api/schemas", params={"q": "x" * (settings.MAX_QUERY_LENGTH + 1)})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_listing_schemas_accepts_a_query_at_the_cap(client):
+    response = client.get("/api/schemas", params={"q": "x" * settings.MAX_QUERY_LENGTH})
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["schemas"] == []
+
+
+@pytest.mark.parametrize(
+    "query", ("bill ing", "two words", "or\nder"), ids=("split name", "two words", "newline")
+)
+def test_listing_schemas_accepts_a_multi_word_query(client, query):
+    """Whitespace separates one term from the next, so several words are one search."""
+    assert client.get("/api/schemas", params={"q": query}).status_code == HTTPStatus.OK
+
+
+@pytest.mark.parametrize("query", ("  order  ", "   ", "\t"), ids=("padded", "spaces", "tab"))
+def test_listing_schemas_accepts_surrounding_whitespace(client, query):
+    """Whitespace around a query is a typing artifact; whitespace-only is no query."""
+    assert client.get("/api/schemas", params={"q": query}).status_code == HTTPStatus.OK
+
+
+def test_listing_schemas_accepts_a_query_padded_with_spaces(client, example_schema):
+    """Surrounding whitespace is trimmed rather than matched on."""
+    client.post("/api/schemas", json=example_schema)
+    response = client.get("/api/schemas", params={"q": f"  {example_schema['name']}  "})
+    assert [s["name"] for s in response.json()["schemas"]] == [example_schema["name"]]
+
+
+@pytest.mark.parametrize("field", ("name", "version"))
+def test_publishing_rejects_an_identifier_longer_than_the_column(client, example_schema, field):
+    """Bounded in the domain, so every backend refuses it the same way.
+
+    The SQL column is `VARCHAR(256)`, which PostgreSQL enforces and SQLite ignores - so
+    while the length lived only in the schema, a 300-character name was stored happily
+    by three backends and answered with a 500 by the fourth.
+    """
+    response = client.post("/api/schemas", json={**example_schema, field: "a" * 300})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

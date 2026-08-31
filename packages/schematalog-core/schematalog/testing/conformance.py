@@ -38,6 +38,7 @@ from schematalog.domain.schema import (
     SchemaDescription,
     SchemaIdentity,
     SchemaRepository,
+    SearchQuery,
     SuccessorReference,
 )
 from schematalog.testing.samples import example_document
@@ -48,11 +49,11 @@ through almost anything and so would check almost nothing."""
 SUCCESSOR_URL = "https://example.com/api/schemas/other/versions/2"
 
 
-def build_schema(name: str = "person", version: str = "1", description: str | None = None):
+def build_schema(name: str = "person", version: str = "1", description: str = ""):
     """A minimal valid `Schema`, with its publication identifier minted as usual."""
     return Schema(
         identity=SchemaIdentity(name=name, version=version),
-        description=SchemaDescription(text=description) if description else None,
+        description=SchemaDescription(text=description),
         json_schema=JsonSchemaDocument(document=dict(DOCUMENT)),
     )
 
@@ -246,6 +247,164 @@ class SchemaRepositoryConformance:
 
     async def test_list_latest_is_empty_for_an_empty_store(self, repository):
         assert [s async for s in repository.list_latest()] == []
+
+    # ---- search: the guarantee every backend must meet exactly ----
+    # Every term a substring of the name or the description, ignoring ASCII case,
+    # name-ascending, filtered not ranked. A backend that stems, fuzzy-matches,
+    # reorders, or ORs the terms fails here.
+
+    async def test_list_latest_filters_by_a_name_substring(self, repository):
+        await repository.add(build_schema(name="billing.invoice", version="1"))
+        await repository.add(build_schema(name="billing.payment", version="1"))
+        await repository.add(build_schema(name="shipping.parcel", version="1"))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="billing"))
+        ] == [
+            "billing.invoice",
+            "billing.payment",
+        ]
+
+    async def test_list_latest_matches_a_substring_anywhere_in_the_name(self, repository):
+        await repository.add(build_schema(name="billing.invoice", version="1"))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="voi"))
+        ] == ["billing.invoice"]
+
+    async def test_list_latest_matches_regardless_of_case(self, repository):
+        await repository.add(build_schema(name="Billing", version="1"))
+        for query in ("billing", "BILLING", "BiLLiNg"):
+            assert [
+                s.name async for s in repository.list_latest(query=SearchQuery(text=query))
+            ] == ["Billing"]
+
+    async def test_list_latest_treats_a_blank_query_as_no_query(self, repository):
+        """An empty search box selects everything, rather than nothing.
+
+        `SearchQuery.parse` maps every blank spelling onto `None`, so a backend only
+        ever has to handle "no query" one way.
+        """
+        await repository.add(build_schema(name="alpha", version="1"))
+        for query in (None, "", "   "):
+            assert [
+                s.name async for s in repository.list_latest(query=SearchQuery.parse(query))
+            ] == ["alpha"]
+
+    async def test_list_latest_yields_nothing_when_the_query_matches_nothing(self, repository):
+        await repository.add(build_schema(name="alpha", version="1"))
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="omega"))] == []
+
+    async def test_list_latest_keeps_its_name_order_when_filtering(self, repository):
+        for name in ("gamma.one", "alpha.one", "beta.one"):
+            await repository.add(build_schema(name=name, version="1"))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="one"))
+        ] == [
+            "alpha.one",
+            "beta.one",
+            "gamma.one",
+        ]
+
+    async def test_list_latest_filters_without_stemming_the_query(self, repository):
+        """A longer query does not match a shorter name.
+
+        The case a full-text backend fails if it turns matching on: an engine with
+        stemming would answer "orders" with `order`, which is a better search and a
+        different one. Being different is what is disallowed.
+        """
+        await repository.add(build_schema(name="order", version="1"))
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="orders"))] == []
+
+    async def test_list_latest_treats_sql_wildcards_as_ordinary_characters(self, repository):
+        """`_` and `%` are legal in a name and mean nothing special in a query.
+
+        `_` matches any single character in SQL `LIKE`, so a backend that interpolates
+        the query into a pattern without escaping answers this with both names.
+        """
+        await repository.add(build_schema(name="a_b", version="1"))
+        await repository.add(build_schema(name="axb", version="1"))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="a_b"))
+        ] == ["a_b"]
+
+    async def test_list_latest_matches_the_description_as_well_as_the_name(self, repository):
+        await repository.add(
+            build_schema(name="alpha", version="1", description="Everything about invoices.")
+        )
+        await repository.add(build_schema(name="beta", version="1", description="Parcels."))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="invoice"))
+        ] == ["alpha"]
+
+    async def test_list_latest_requires_every_term_to_match(self, repository):
+        """Terms are ANDed, so adding a word narrows rather than widens.
+
+        The distinction that matters: under OR, `billing parcel` would answer with both
+        of these, and no ordering could tell the caller which one they meant.
+        """
+        await repository.add(build_schema(name="billing", version="1", description="Invoices."))
+        await repository.add(build_schema(name="parcel", version="1", description="Shipping."))
+        assert [
+            s.name
+            async for s in repository.list_latest(query=SearchQuery(text="billing invoice"))
+        ] == ["billing"]
+        assert [
+            s async for s in repository.list_latest(query=SearchQuery(text="billing parcel"))
+        ] == []
+
+    async def test_list_latest_matches_terms_across_both_fields(self, repository):
+        """One term in the name and another in the description still matches.
+
+        The pair of fields is not visible to the caller: they typed one box, so where
+        each word was found is not something they should have to know.
+        """
+        await repository.add(
+            build_schema(name="payment", version="1", description="Raises an invoice.")
+        )
+        assert [
+            s.name
+            async for s in repository.list_latest(query=SearchQuery(text="payment invoice"))
+        ] == ["payment"]
+
+    async def test_list_latest_matches_a_description_regardless_of_case(self, repository):
+        await repository.add(build_schema(name="alpha", version="1", description="INVOICES."))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="invoice"))
+        ] == ["alpha"]
+
+    async def test_list_latest_matches_nothing_against_an_empty_description(self, repository):
+        """A schema nobody described is still listed, and still matched on its name.
+
+        A store that left the description NULL rather than empty fails the first of
+        these, because `NULL LIKE ...` is NULL and drops the row from the OR.
+        """
+        await repository.add(build_schema(name="alpha", version="1"))
+        assert [
+            s.name async for s in repository.list_latest(query=SearchQuery(text="alpha"))
+        ] == ["alpha"]
+        assert [
+            s async for s in repository.list_latest(query=SearchQuery(text="invoice"))
+        ] == []
+
+    async def test_list_latest_folds_case_by_ascii_rules_only(self, repository):
+        """A non-ASCII character must not fold into an ASCII one.
+
+        The query alphabet is ASCII, so this looks unreachable - but the *description*
+        is free text, and a store whose `lower()` follows a Unicode locale turns
+        `KELVIN SIGN` into `k`, matching a query that matches nowhere else. Descriptions
+        must therefore be compared with ASCII folding, which on PostgreSQL means a
+        `C`-collated column.
+        """
+        await repository.add(build_schema(name="alpha", version="1", description="\u212a"))
+        assert [s async for s in repository.list_latest(query=SearchQuery(text="k"))] == []
+
+    async def test_list_latest_searches_only_the_latest_version(self, repository):
+        """One hit per name, not one per version - the filter narrows the same listing."""
+        await repository.add(build_schema(name="alpha", version="1"))
+        await repository.add(build_schema(name="alpha", version="2"))
+        assert [
+            (s.name, s.version)
+            async for s in repository.list_latest(query=SearchQuery(text="alpha"))
+        ] == [("alpha", "2")]
 
     # ---- list_predecessors (derived, may be overridden) -----------------------------
 

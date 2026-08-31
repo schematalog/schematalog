@@ -22,7 +22,7 @@ from schematalog.app.wiring.storage import (
     InvalidStorageUrlError,
     build_schema_repository,
     check_storage,
-    storage_summary,
+    get_storage_summary,
 )
 from schematalog.common.logging import redact
 
@@ -63,7 +63,7 @@ def _info(_: argparse.Namespace) -> int:
     The URL itself is never printed: it routinely carries a password, and `info` is
     exactly the output someone pastes into an issue.
     """
-    store = storage_summary(settings.STORAGE_URL)
+    store = get_storage_summary(settings.STORAGE_URL)
     known = "recognised" if store["known"] else "NOT recognised - no backend answers to it"
     print(f"schematalog {__version__}")
     print(f"storage scheme: {store['scheme']} ({known})")
@@ -85,7 +85,7 @@ def _check(_: argparse.Namespace) -> int:
     answer. Like `info` it never prints the URL, and the backend's own error goes
     through the same redaction as a log line first.
     """
-    store = storage_summary(settings.STORAGE_URL)
+    store = get_storage_summary(settings.STORAGE_URL)
     print(f"schematalog {__version__}")
     if not store["known"]:
         print(f"storage scheme: {store['scheme']} (NOT recognised - no backend answers to it)")

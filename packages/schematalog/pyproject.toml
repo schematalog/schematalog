@@ -1,6 +1,6 @@
 [project]
 name = "schematalog"
-version = "0.1.0"
+version = "0.2.0"
 description = "A registry and catalog for JSON Schema specifications."
 readme = "README.md"
 authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]

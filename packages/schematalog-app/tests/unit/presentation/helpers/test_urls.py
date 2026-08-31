@@ -25,9 +25,9 @@ def test_preserves_existing_title_and_description():
     assert result["description"] == "Kept too"
 
 
-def test_omits_description_when_none():
+def test_omits_description_when_empty():
     result = stamp_canonical_id(
-        {"type": "object"}, canonical_url=_URL, title="smoke", description=None
+        {"type": "object"}, canonical_url=_URL, title="smoke", description=""
     )
     assert "description" not in result
 
@@ -40,7 +40,7 @@ def test_does_not_mutate_input():
 
 def test_stamps_deprecated_when_true():
     result = stamp_canonical_id(
-        {"type": "object"}, canonical_url=_URL, title="smoke", description=None, deprecated=True
+        {"type": "object"}, canonical_url=_URL, title="smoke", description="", deprecated=True
     )
     assert result["deprecated"] is True
 
@@ -51,7 +51,7 @@ def test_removes_deprecated_when_false():
         {"deprecated": True},
         canonical_url=_URL,
         title="smoke",
-        description=None,
+        description="",
         deprecated=False,
     )
     assert "deprecated" not in result

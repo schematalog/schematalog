@@ -7,8 +7,10 @@ gapmap is deliberately not carried over.
 
 from datetime import UTC
 
-from sqlalchemy import JSON, DateTime, String, TypeDecorator
+from sqlalchemy import JSON, DateTime, String, Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
+
+from schematalog.domain.schema import MAX_IDENTIFIER_LENGTH
 
 # JSONB on PostgreSQL (indexable, typed), plain JSON everywhere else (e.g. SQLite).
 AdaptiveJSONColumn = JSON().with_variant(JSONB(), "postgresql")
@@ -31,7 +33,19 @@ AdaptiveJSONColumn = JSON().with_variant(JSONB(), "postgresql")
 # `publication_id`, and the version string is never compared (see DECISIONS.md). The
 # collation is therefore no longer load-bearing for correctness, only for listings
 # looking the same everywhere.
-IdentifierColumn = String(256).with_variant(String(256, collation="C"), "postgresql")
+IdentifierColumn = String(MAX_IDENTIFIER_LENGTH).with_variant(
+    String(MAX_IDENTIFIER_LENGTH, collation="C"), "postgresql"
+)
+
+
+# Search folds case with ASCII rules, and the column's collation is what makes
+# PostgreSQL's `lower()` agree. Under the database's own locale it folds a handful of
+# non-ASCII characters *to* ASCII - `lower('KELVIN SIGN')` is `k` - so a pure-ASCII
+# query matched a description on PostgreSQL that it matched nowhere else. Under `C`
+# it lowercases ASCII and nothing more, which is exactly what SQLite's `lower()` and
+# the domain's own `to_lowercase_ascii` do. Names need no such treatment: `IdentifierColumn` above
+# is already `C`-collated, for ordering.
+DescriptionColumn = Text().with_variant(Text(collation="C"), "postgresql")
 
 
 class TimezoneAwareDateTime(TypeDecorator):

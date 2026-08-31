@@ -16,7 +16,7 @@ class IncompatibleSchemaError(Exception):
     """Raised if a schema does not conform to any of the accepted meta schemas."""
 
 
-def preprocess_schema(schema: dict) -> dict:
+def normalise_for_publication(schema: dict) -> dict:
     schema = validate_metaschema(schema)
     schema = convert_openapi_nullable(schema)
     schema.pop("$id", None)
