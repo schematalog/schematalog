@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterable, Mapping
+from collections.abc import AsyncIterable, Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from enum import Enum, auto
 from string import ascii_lowercase, ascii_uppercase
@@ -43,6 +43,26 @@ of store.
 
 SchemaName = Annotated[str, Field(pattern=NAME_PATTERN, max_length=MAX_IDENTIFIER_LENGTH)]
 SchemaVersion = Annotated[str, Field(pattern=NAME_PATTERN, max_length=MAX_IDENTIFIER_LENGTH)]
+
+LABEL_PATTERN = r"^[0-9a-z][0-9a-z\-_.]*$"
+"""The characters a label may contain: the name alphabet, lowercase only.
+
+Labels fold to lowercase on the way in, so the pattern never sees a capital. Spaces are
+out deliberately: `customer data` versus `customer-data` is the same spelling drift as
+`payments` versus `payment`, and labels exist to be grouped by, which free text drifts
+too easily to do. Staying in the name alphabet keeps a label URL-safe and validated on
+the same pattern as everything else the registry addresses by text.
+"""
+
+MAX_LABELS_PER_SCHEMA = 32
+"""How many labels one version may carry.
+
+A resource guard, not a semantic boundary - the demo instance is world-writable. Set at
+the generous end, where being wrong costs nothing, rather than the tight end, where
+being wrong refuses a legitimate grouping.
+"""
+
+Label = Annotated[str, Field(pattern=LABEL_PATTERN, max_length=MAX_IDENTIFIER_LENGTH)]
 
 
 class _UnsetType(Enum):
@@ -148,6 +168,68 @@ class SuccessorReference(ValueObject):
         return value
 
 
+class SchemaLabels(ValueObject):
+    """The grouping tags carried by one schema version.
+
+    Canonical by construction: folded to lowercase, deduplicated and sorted, so two sets
+    written with the same intent are the same value - and serialise to the same bytes,
+    which is what keeps a git-tracked filesystem store's diffs clean. Folding is ASCII
+    (`to_lowercase_ascii`, shared with search), so every backend stores and matches the
+    same value no matter what its own case-handling does.
+
+    The set is the unit of update: metadata replacement writes a whole `SchemaLabels`,
+    and filtering asks whether it *covers* the required labels. There are no item-level
+    add/remove operations - an empty set is a real value (it clears), so unlike
+    `successor` no sentinel is needed to tell 'leave unchanged' from 'clear'.
+    """
+
+    labels: tuple[Label, ...]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_iterable(cls, value: Any) -> Any:
+        """Accept any iterable of raw strings - or one bare string - as the set."""
+        if isinstance(value, str):
+            return {"labels": (value,)}
+        if isinstance(value, Iterable) and not isinstance(value, Mapping):
+            return {"labels": tuple(value)}
+        return value
+
+    @field_validator("labels", mode="before")
+    @classmethod
+    def _canonicalise(cls, value: Any) -> Any:
+        """Fold, dedupe and sort, so equality agrees with behaviour."""
+        return tuple(sorted({to_lowercase_ascii(label) for label in value}))
+
+    @field_validator("labels")
+    @classmethod
+    def _cap_the_set(cls, value: tuple[Label, ...]) -> tuple[Label, ...]:
+        """Bound the set, after deduplication: what is stored is what is guarded."""
+        if len(value) > MAX_LABELS_PER_SCHEMA:
+            raise ValueError(  # noqa: TRY003
+                f"a schema version may carry at most {MAX_LABELS_PER_SCHEMA} labels"
+            )
+        return value
+
+    @model_serializer(mode="plain")
+    def _serialize(self) -> list[str]:
+        return list(self.labels)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.labels)
+
+    def __len__(self) -> int:
+        return len(self.labels)
+
+    def __contains__(self, label: str) -> bool:
+        """Exact membership of an already-canonical (lowercase) label."""
+        return label in self.labels
+
+    def covers(self, required: SchemaLabels) -> bool:
+        """Whether every one of the `required` labels is present - the filter's AND."""
+        return set(required.labels).issubset(self.labels)
+
+
 class JsonSchemaDocument(ValueObject):
     """A JSON Schema document.
 
@@ -248,6 +330,13 @@ class Schema(BaseModel):
     ] = None
     """Mutable lifecycle metadata - an absolute URI (internal `$id` or external). Set,
     changed, or cleared via metadata update; `None` means no declared successor."""
+    labels: Annotated[
+        SchemaLabels, Field(description="Grouping tags carried by this version.")
+    ] = SchemaLabels(labels=())
+    """Mutable grouping metadata, per version like the rest of its family: each version
+    owns its set, publishing carries it (the way the description is carried), and
+    grouping reads the latest version's set. Never `None` - a set with nothing in it is
+    empty, and empty is a fact about this version, not a missing one."""
 
     @computed_field
     @property
@@ -329,18 +418,23 @@ class Schema(BaseModel):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         """Return a copy with the given mutable metadata changed.
 
         For `deprecated`, `None` leaves the field as-is (it is never cleared).
         `successor` is clearable, so it uses the `UNSET` sentinel: `UNSET` leaves it
-        unchanged, `None` clears it, a reference sets it. Both are freely reversible.
+        unchanged, `None` clears it, a reference sets it. `labels` replaces the whole
+        set when given and needs no sentinel: an empty set is a real value (it clears).
+        All three are freely reversible.
         """
         updates: dict[str, Any] = {}
         if deprecated is not None:
             updates["deprecated"] = deprecated
         if successor is not UNSET:
             updates["successor"] = successor
+        if labels is not None:
+            updates["labels"] = labels
         return self.model_copy(update=updates)
 
     @property
@@ -511,9 +605,9 @@ class SchemaRepository(ABC):
     """The storage contract, and the seam a third-party backend implements.
 
     **Five methods are required**: `add`, `get`, `set_metadata`, `list_versions` and
-    `list_names`. The other three - `get_latest`, `list_latest` and `list_predecessors` -
-    are derived from those here, and a backend overrides them only when it can answer them
-    better (the SQL backend does; it has real queries for all three).
+    `list_names`. The other four - `get_latest`, `list_latest`, `list_predecessors` and
+    `list_labels` - are derived from those here, and a backend overrides them only when it
+    can answer them better (the SQL backend does; it has real queries for the first three).
 
     The split is deliberate. Two of the derived methods encode the *latest* rule, which is
     policy rather than storage: newest current version, falling back to newest outright.
@@ -554,11 +648,13 @@ class SchemaRepository(ABC):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         """Update an existing version's mutable metadata.
 
         `deprecated` changes only when non-None; `successor` changes only when not
-        `UNSET` (`None` clears it, a reference sets it). Touches no immutable
+        `UNSET` (`None` clears it, a reference sets it); `labels` replaces the whole set
+        when given (`None` leaves it, an empty set clears it). Touches no immutable
         field (identity, json_schema, publication_id). Returns the updated schema. Raises
         UnknownSchemaError if the version does not exist.
         """
@@ -604,20 +700,41 @@ class SchemaRepository(ABC):
             raise UnknownSchemaError(schema_name)
         return newest
 
-    async def list_latest(self, *, query: SearchQuery | None = None) -> AsyncIterable[Schema]:
+    async def list_latest(
+        self, *, query: SearchQuery | None = None, labels: SchemaLabels | None = None
+    ) -> AsyncIterable[Schema]:
         """The latest version of every schema, in name-ascending order.
 
         "Latest" means the same thing as in `get_latest`, per name. `query` narrows the
-        result to versions it matches; `None` selects everything.
+        result to versions it matches, and `labels` narrows it to versions carrying
+        every one of them; either being `None` selects everything. The two narrow
+        together - a version must satisfy both.
 
-        Filtering costs nothing extra here, since this already fetches each name's
-        latest - so a backend overrides this to push the filter into the store, not to
-        rescue work that this does badly.
+        Label matching is exact on the folded label, never a substring: a label is a
+        token to group by, not text to search. Filtering costs nothing extra here, since
+        this already fetches each name's latest - so a backend overrides this to push
+        the filter into the store, not to rescue work that this does badly.
         """
         async for schema_name in self.list_names():
             schema = await self.get_latest(schema_name)
-            if query is None or query.matches(schema):
-                yield schema
+            if query is not None and not query.matches(schema):
+                continue
+            if labels is not None and not schema.labels.covers(labels):
+                continue
+            yield schema
+
+    async def list_labels(self) -> AsyncIterable[str]:
+        """Every label carried by a latest version, ascending, each once.
+
+        The discoverability half of the drift story: a publisher cannot reuse a spelling
+        they cannot see. Derived by scanning `list_latest`; a backend overrides it only
+        where its store can answer better (a `SELECT DISTINCT` over unnested labels).
+        """
+        seen: set[str] = set()
+        async for schema in self.list_latest():
+            seen.update(schema.labels)
+        for label in sorted(seen):
+            yield label
 
     async def list_predecessors(self, successor_url: str) -> AsyncIterable[Schema]:
         """All versions whose declared successor is `successor_url` (derived predecessors).

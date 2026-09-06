@@ -37,6 +37,7 @@ from schematalog.domain.schema import (
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SchemaLabels,
     SchemaRepository,
     SearchQuery,
     SuccessorReference,
@@ -49,12 +50,18 @@ through almost anything and so would check almost nothing."""
 SUCCESSOR_URL = "https://example.com/api/schemas/other/versions/2"
 
 
-def build_schema(name: str = "person", version: str = "1", description: str = ""):
+def build_schema(
+    name: str = "person",
+    version: str = "1",
+    description: str = "",
+    labels: list[str] | None = None,
+):
     """A minimal valid `Schema`, with its publication identifier minted as usual."""
     return Schema(
         identity=SchemaIdentity(name=name, version=version),
         description=SchemaDescription(text=description),
         json_schema=JsonSchemaDocument(document=dict(DOCUMENT)),
+        labels=SchemaLabels(labels=tuple(labels or ())),
     )
 
 
@@ -405,6 +412,117 @@ class SchemaRepositoryConformance:
             (s.name, s.version)
             async for s in repository.list_latest(query=SearchQuery(text="alpha"))
         ] == [("alpha", "2")]
+
+    # ---- labels: stored, replaced as a set, filtered exactly ----
+
+    async def test_labels_default_to_an_empty_set(self, repository):
+        schema = await repository.add(build_schema())
+        assert list((await repository.get(schema.identity)).labels) == []
+
+    async def test_labels_survive_the_storage_roundtrip(self, repository):
+        schema = await repository.add(build_schema(labels=["billing", "payments"]))
+        assert list((await repository.get(schema.identity)).labels) == ["billing", "payments"]
+
+    async def test_set_metadata_replaces_the_whole_label_set(self, repository):
+        schema = await repository.add(build_schema(labels=["billing"]))
+        updated = await repository.set_metadata(
+            schema.identity, labels=SchemaLabels(labels=("payments", "customer"))
+        )
+        assert list(updated.labels) == ["customer", "payments"]
+        assert list((await repository.get(schema.identity)).labels) == [
+            "customer",
+            "payments",
+        ]
+
+    async def test_set_metadata_clears_labels_with_an_empty_set(self, repository):
+        """An empty set is a real value, so it clears - no sentinel is involved."""
+        schema = await repository.add(build_schema(labels=["billing"]))
+        await repository.set_metadata(schema.identity, labels=SchemaLabels(labels=()))
+        assert list((await repository.get(schema.identity)).labels) == []
+
+    async def test_set_metadata_leaves_labels_alone_when_not_given(self, repository):
+        schema = await repository.add(build_schema(labels=["billing"]))
+        await repository.set_metadata(schema.identity, deprecated=True)
+        assert list((await repository.get(schema.identity)).labels) == ["billing"]
+
+    async def test_list_latest_filters_by_a_label(self, repository):
+        await repository.add(build_schema(name="alpha", version="1", labels=["billing"]))
+        await repository.add(build_schema(name="beta", version="1", labels=["shipping"]))
+        await repository.add(build_schema(name="gamma", version="1"))
+        assert [
+            s.name
+            async for s in repository.list_latest(labels=SchemaLabels(labels=("billing",)))
+        ] == ["alpha"]
+
+    async def test_list_latest_requires_every_label(self, repository):
+        """Labels are ANDed, so requiring another one narrows rather than widens."""
+        await repository.add(
+            build_schema(name="alpha", version="1", labels=["billing", "customer"])
+        )
+        await repository.add(build_schema(name="beta", version="1", labels=["billing"]))
+        assert [
+            s.name
+            async for s in repository.list_latest(
+                labels=SchemaLabels(labels=("billing", "customer"))
+            )
+        ] == ["alpha"]
+
+    async def test_list_latest_matches_a_label_exactly(self, repository):
+        """A label is a token, not text: `payment` does not match `payments`.
+
+        The case a full-text store fails if it answers labels through its search index:
+        substring or stemmed matching is a better filter and a different one, and being
+        different is what is disallowed.
+        """
+        await repository.add(build_schema(name="alpha", version="1", labels=["payments"]))
+        assert [
+            s async for s in repository.list_latest(labels=SchemaLabels(labels=("payment",)))
+        ] == []
+
+    async def test_list_latest_matches_a_label_regardless_of_case(self, repository):
+        """The filter folds exactly as writes do, so either spelling finds the label."""
+        await repository.add(build_schema(name="alpha", version="1", labels=["Payments"]))
+        assert [
+            s.name
+            async for s in repository.list_latest(labels=SchemaLabels(labels=("PAYMENTS",)))
+        ] == ["alpha"]
+
+    async def test_list_latest_filters_labels_on_the_latest_version_only(self, repository):
+        """Labels are per-version; grouping reads the latest version's set.
+
+        Publishing without labels drops the schema from the group, and labelling the new
+        version adds it back - the accepted cost recorded in `DECISIONS.md`.
+        """
+        await repository.add(build_schema(name="alpha", version="1", labels=["billing"]))
+        await repository.add(build_schema(name="alpha", version="2"))
+        assert [
+            s async for s in repository.list_latest(labels=SchemaLabels(labels=("billing",)))
+        ] == []
+        newer = await repository.get(SchemaIdentity(name="alpha", version="2"))
+        await repository.set_metadata(
+            newer.identity, labels=SchemaLabels(labels=("billing",))
+        )
+        assert [
+            s.name
+            async for s in repository.list_latest(labels=SchemaLabels(labels=("billing",)))
+        ] == ["alpha"]
+
+    async def test_list_labels_is_empty_for_an_empty_store(self, repository):
+        assert [label async for label in repository.list_labels()] == []
+
+    async def test_list_labels_collects_each_label_once_ascending(self, repository):
+        await repository.add(
+            build_schema(name="alpha", version="1", labels=["payments", "billing"])
+        )
+        await repository.add(build_schema(name="beta", version="1", labels=["billing"]))
+        await repository.add(build_schema(name="gamma", version="1"))
+        assert [label async for label in repository.list_labels()] == ["billing", "payments"]
+
+    async def test_list_labels_reads_only_the_latest_version(self, repository):
+        """A label dropped from the newest version leaves the listing with it."""
+        await repository.add(build_schema(name="alpha", version="1", labels=["retired"]))
+        await repository.add(build_schema(name="alpha", version="2", labels=["current"]))
+        assert [label async for label in repository.list_labels()] == ["current"]
 
     # ---- list_predecessors (derived, may be overridden) -----------------------------
 
