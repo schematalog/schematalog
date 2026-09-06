@@ -172,20 +172,24 @@ they are mutable per-schema metadata, the family `set_metadata` already carries.
 
   **Name and description are done (2026-08-31)**: one `q` parameter, every word of a
   query required in one field or the other, no syntax of any kind (see `DECISIONS.md` for
-  why that rule is what keeps a query language from growing). Two pieces remain.
-  **Searching the document itself** - property names above all - which the decision says
-  should be its own parameter rather than folded into `q`, since an unranked union would
-  swamp the other two. And **pagination**, still to be settled with search, since search
-  is what makes large results likely.
+  why that rule is what keeps a query language from growing). Two pieces remain, reordered
+  2026-09-06. **Pagination** follows labels - it was to be settled with search because
+  search is what makes large results likely, and the half of search that threatens that
+  is the half that just moved back. **Searching the document itself** - property names
+  above all - is deferred until the more basic features are done; the decision that it
+  should be its own parameter rather than folded into `q` stands, since an unranked union
+  would swamp the other two.
 
   Also left open by the ASCII-only alphabet: matching a non-ASCII query needs backends to
   match against an application-written folded column rather than folding as they query,
   because no two stores lower-case alike. Worth doing when someone needs it.
-- **Labels or annotations on a schema.** Free-form tags, a fixed category hierarchy,
-  or arbitrary annotations - scope still open, including whether free-form labels need
-  any constraint to stop them drifting (`payments`, `payment`, `Payments`). Cheap by
-  construction: mutable per-schema metadata in the same family as `deprecated` and
-  `successor`, so it extends one existing method rather than adding an aggregate.
+- **Labels on a schema.** Decided 2026-09-06 (see `DECISIONS.md`): free-form tags -
+  not a fixed hierarchy, not key-value annotations - carried per version as mutable
+  metadata in the same family as `deprecated` and `successor`, so they extend one
+  existing method rather than adding an aggregate. Folded to lowercase on write, capped,
+  filtered exactly through their own repeatable `label` parameter (never folded into
+  `q`), and discoverable through a labels-in-use listing, which is what steers spelling
+  drift rather than preventing it.
 - **Catalogs, only if labels and search leave something missing.** Deferred 2026-08-29
   rather than dropped; `DECISIONS.md` keeps both the design (soft grouping, referencing
   rather than containing) and the reason for holding off. The test for whether one is
