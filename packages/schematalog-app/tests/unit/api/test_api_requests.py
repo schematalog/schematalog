@@ -343,6 +343,53 @@ def test_publishing_rejects_an_identifier_longer_than_the_column(client, example
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
+# ---- the complete record of one version ----------------------------------------------
+
+
+def test_version_metadata_returns_the_complete_record(client, example_schema):
+    """The read the bare document URL cannot give: everything else the registry knows."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    response = client.get(f"{url}/metadata")
+
+    assert response.status_code == HTTPStatus.OK
+    record = response.json()
+    assert record["name"] == example_schema["name"]
+    assert record["version"] == example_schema["version"]
+    assert record["labels"] == ["billing"]
+    assert record["deprecated"] is False
+    assert "publication_id" in record
+    # The record points back at the document endpoint, and the document rides along,
+    # stamped with the canonical $id like everywhere else.
+    assert record["canonical_url"].endswith(url)
+    assert record["schema"]["$id"] == record["canonical_url"]
+
+
+def test_version_document_stays_the_bare_document(client, example_schema):
+    """The canonical $id answers the document alone - what a `$ref` resolver expects."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    document = client.get(url).json()
+
+    assert document["$id"].endswith(url)
+    # Registry metadata lives at the metadata URL, not in the resolvable document.
+    assert "labels" not in document
+    assert "canonical_url" not in document
+
+
+def test_version_metadata_is_404_for_an_unknown_version(client, example_schema):
+    client.post("/api/schemas", json=example_schema)
+    response = client.get(f"/api/schemas/{example_schema['name']}/versions/99/metadata")
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_version_metadata_is_404_for_an_unknown_name(client):
+    response = client.get("/api/schemas/nobody/versions/1/metadata")
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 # ---- labels ------------------------------------------------------------------------
 
 

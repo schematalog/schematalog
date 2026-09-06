@@ -207,6 +207,30 @@ async def get_json_schema(
     )
 
 
+@router.get(
+    "/schemas/{schema_name}/versions/{version}/metadata",
+    response_model=SchemaResponse,
+    response_model_exclude_none=True,
+)
+async def get_schema_metadata(
+    schema_name: str,
+    version: str,
+    request: Request,
+    service: SchemaService = Depends(get_service),
+) -> SchemaResponse:
+    """The registry's complete record of one version: its metadata plus the document.
+
+    The bare version URL returns the document alone, because that is what a `$ref`
+    resolver fetching the `$id` expects. Everything else the registry knows about the
+    version - when it was published, whether it is deprecated, what supersedes it,
+    which labels group it - lives here, in the same representation the collection
+    listings return, so a client learns one shape. Its `canonical_url` points back at
+    the document endpoint.
+    """
+    view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version))
+    return _to_response(view, request)
+
+
 @router.patch(
     "/schemas/{schema_name}/versions/{version}",
     response_model=SchemaResponse,
