@@ -1,8 +1,8 @@
 """A storage backend defined entirely outside `schematalog`, to prove the seam holds.
 
 It implements the five required methods and nothing else, inheriting `get_latest`,
-`list_latest` and `list_predecessors` - so it is also the smallest demonstration that a
-third party gets those for free and correct.
+`list_latest`, `list_predecessors` and `list_labels` - so it is also the smallest
+demonstration that a third party gets those for free and correct.
 """
 
 from collections.abc import AsyncIterable
@@ -12,6 +12,7 @@ from schematalog.domain.schema import (
     UNSET,
     Schema,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SuccessorReference,
@@ -44,12 +45,15 @@ class ProbeRepository(SchemaRepository):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         schema = await self.get(identity)
         if deprecated is not None:
             schema.deprecated = deprecated
         if successor is not UNSET:
             schema.successor = successor
+        if labels is not None:
+            schema.labels = labels
         return schema
 
     async def list_versions(self, schema_name: SchemaName) -> AsyncIterable[Schema]:

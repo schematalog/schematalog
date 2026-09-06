@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 
 from schematalog.app.application.exceptions import (
     DuplicateSchemaError,
+    InvalidLabelError,
     InvalidSchemaError,
     InvalidSearchQueryError,
     InvalidSuccessorError,
@@ -31,6 +32,7 @@ from schematalog.domain.schema import (
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SchemaVersion,
@@ -53,6 +55,9 @@ class PublishCommand(BaseModel):
     version: SchemaVersion
     json_schema: dict[str, Any]
     description: str = ""
+    labels: list[str] = []
+    """Raw label spellings; the service folds, dedupes and sorts them into the
+    canonical `SchemaLabels` (and refuses what no label may hold)."""
 
 
 class GetSchemaCommand(BaseModel):
@@ -80,6 +85,10 @@ class ListLatestCommand(BaseModel):
     Raw text rather than a `SearchQuery`: this is the bridge from external input, and
     turning it into the validated value object is the service's job, so presentation
     never has to catch a domain error."""
+    labels: list[str] | None = None
+    """Narrows the listing to schemas carrying every one of these, exactly (no
+    substring). `None` or empty selects everything. Raw spellings like `query`, for the
+    same reason; the two filters narrow together, each on its own terms."""
 
 
 class ListPredecessorsCommand(BaseModel):
@@ -110,6 +119,10 @@ class MetadataUpdateCommand(BaseModel):
     """The internal `(name, version)` the successor URL resolves to, if it points at this
     registry (else `None`). Resolved by presentation (it owns routing); the service
     existence-checks it. Not set when clearing or for an external successor."""
+    labels: list[str] | None = None
+    """The new label set, replacing the old one wholesale (`[]` clears it). `None`
+    leaves the labels untouched - empty is a real value here, so no tri-state is
+    needed. Raw spellings; canonicalising is the service's job."""
 
 
 class SchemaView(FrozenModel):
@@ -129,6 +142,7 @@ class SchemaView(FrozenModel):
     published_on: datetime
     deprecated: bool
     successor: SuccessorReference | None
+    labels: list[str]
 
     @classmethod
     def from_schema(cls, schema: Schema) -> SchemaView:
@@ -141,6 +155,7 @@ class SchemaView(FrozenModel):
             published_on=schema.published_on,
             deprecated=schema.deprecated,
             successor=schema.successor,
+            labels=list(schema.labels),
         )
 
 
@@ -170,10 +185,15 @@ class SchemaService:
         except IncompatibleSchemaError as exc:
             raise InvalidSchemaError from exc
         try:
+            labels = SchemaLabels(labels=command.labels)
+        except ValidationError as exc:
+            raise InvalidLabelError(str(exc)) from exc
+        try:
             schema = Schema(
                 identity=SchemaIdentity(name=command.name, version=command.version),
                 description=SchemaDescription(text=command.description),
                 json_schema=JsonSchemaDocument(document=document),
+                labels=labels,
                 # Ownership of an existing name is checked before the entity is built.
             )
         except ValidationError as exc:
@@ -235,17 +255,26 @@ class SchemaService:
         except UnknownSchemaError as exc:
             raise SchemaNotFoundError(str(exc)) from exc
         touch_successor = "successor" in command.model_fields_set
-        if command.deprecated is None and not touch_successor:
+        if command.deprecated is None and not touch_successor and command.labels is None:
             return SchemaView.from_schema(schema)
         if touch_successor and command.successor_target is not None:
             await self._validate_successor(identity, command.successor_target)
+        labels = None
+        if command.labels is not None:
+            try:
+                labels = SchemaLabels(labels=command.labels)
+            except ValidationError as exc:
+                raise InvalidLabelError(str(exc)) from exc
         updated = schema.with_metadata(
             deprecated=command.deprecated,
             successor=command.successor if touch_successor else UNSET,
+            labels=labels,
         )
         metadata: dict[str, Any] = {"deprecated": updated.deprecated}
         if touch_successor:
             metadata["successor"] = updated.successor
+        if labels is not None:
+            metadata["labels"] = labels
         stored = await self._repo.set_metadata(updated.identity, **metadata)
         return SchemaView.from_schema(stored)
 
@@ -286,8 +315,21 @@ class SchemaService:
             query = SearchQuery.parse(command.query)
         except ValidationError as exc:
             raise InvalidSearchQueryError(str(exc)) from exc
-        async for schema in self._repo.list_latest(query=query):
+        try:
+            labels = SchemaLabels(labels=command.labels) if command.labels else None
+        except ValidationError as exc:
+            raise InvalidLabelError(str(exc)) from exc
+        async for schema in self._repo.list_latest(query=query, labels=labels):
             yield SchemaView.from_schema(schema)
+
+    async def list_labels(self) -> AsyncIterable[str]:
+        """Every label carried by a latest version, ascending.
+
+        Backs the publish form's suggestions and the `GET /api/labels` listing - the
+        discoverability that steers spelling drift rather than preventing it.
+        """
+        async for label in self._repo.list_labels():
+            yield label
 
     async def list_schema_versions(
         self, command: ListVersionsCommand

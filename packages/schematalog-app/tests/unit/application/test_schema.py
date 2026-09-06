@@ -11,11 +11,13 @@ from pydantic import ValidationError
 import pytest
 
 from schematalog.app.application.exceptions import (
+    InvalidLabelError,
     InvalidSuccessorError,
     SchemaNotFoundError,
 )
 from schematalog.app.application.schema import (
     GetSchemaCommand,
+    ListLatestCommand,
     ListVersionsCommand,
     MetadataUpdateCommand,
     PublishCommand,
@@ -35,13 +37,14 @@ def _service(repo) -> SchemaService:
     return SchemaService(repo)
 
 
-async def _publish(repo, schema):
+async def _publish(repo, schema, labels=None):
     return await _service(repo).publish_schema(
         PublishCommand(
             name=schema["name"],
             version=schema["version"],
             json_schema=schema["schema"],
             description=schema.get("description"),
+            labels=labels or [],
         )
     )
 
@@ -91,12 +94,13 @@ async def test_list_versions_unknown_name_raises(schema_repo):
 # ---- metadata update (PATCH): mutable-only, owner-gated ---------------------------
 
 
-async def _update(repo, schema, deprecated=None):
+async def _update(repo, schema, deprecated=None, labels=None):
     return await _service(repo).update_schema_metadata(
         MetadataUpdateCommand(
             name=schema["name"],
             version=schema["version"],
             deprecated=deprecated,
+            labels=labels,
         )
     )
 
@@ -159,12 +163,83 @@ async def test_update_rejects_self_successor(schema_repo, example_schema):
 
 
 async def test_update_with_no_changes_leaves_the_version_untouched(schema_repo, example_schema):
-    published = await _publish(schema_repo, example_schema)
+    published = await _publish(schema_repo, example_schema, labels=["billing"])
     updated = await _update(schema_repo, example_schema)
     assert updated.deprecated is published.deprecated
     assert updated.successor == published.successor
+    assert updated.labels == ["billing"]
 
 
 async def test_update_unknown_schema_raises(schema_repo, example_schema):
     with pytest.raises(SchemaNotFoundError):
         await _update(schema_repo, example_schema)
+
+
+# ---- labels: canonicalised by the service, replaced wholesale, filtered exactly ------
+
+
+async def test_publish_canonicalises_the_labels(schema_repo, example_schema):
+    """Folded, deduplicated and sorted - the view shows what was stored, not typed."""
+    published = await _publish(
+        schema_repo, example_schema, labels=["Payments", "billing", "payments"]
+    )
+    assert published.labels == ["billing", "payments"]
+
+
+async def test_publish_rejects_a_label_outside_the_alphabet(schema_repo, example_schema):
+    with pytest.raises(InvalidLabelError):
+        await _publish(schema_repo, example_schema, labels=["customer data"])
+
+
+async def test_update_replaces_the_label_set_wholesale(schema_repo, example_schema):
+    await _publish(schema_repo, example_schema, labels=["billing"])
+    updated = await _update(schema_repo, example_schema, labels=["customer", "Payments"])
+    assert updated.labels == ["customer", "payments"]
+
+
+async def test_update_clears_labels_with_an_empty_set(schema_repo, example_schema):
+    """`[]` is a value (clear), where `None` would be 'leave unchanged'."""
+    await _publish(schema_repo, example_schema, labels=["billing"])
+    updated = await _update(schema_repo, example_schema, labels=[])
+    assert updated.labels == []
+
+
+async def test_update_rejects_an_invalid_label(schema_repo, example_schema):
+    await _publish(schema_repo, example_schema)
+    with pytest.raises(InvalidLabelError):
+        await _update(schema_repo, example_schema, labels=["not a label"])
+
+
+async def test_list_latest_narrows_on_a_query_and_labels_together(schema_repo, example_schema):
+    """The two filters compose: a schema must satisfy both, each on its own terms."""
+    await _publish(schema_repo, {**example_schema, "name": "billing.one"}, labels=["payments"])
+    await _publish(schema_repo, {**example_schema, "name": "billing.two"}, labels=["shipping"])
+    await _publish(schema_repo, {**example_schema, "name": "other.three"}, labels=["payments"])
+    found = [
+        view.name
+        async for view in _service(schema_repo).list_latest_schemas(
+            ListLatestCommand(query="billing", labels=["payments"])
+        )
+    ]
+    assert found == ["billing.one"]
+
+
+async def test_list_latest_rejects_an_invalid_label_filter(schema_repo):
+    with pytest.raises(InvalidLabelError):
+        [
+            view
+            async for view in _service(schema_repo).list_latest_schemas(
+                ListLatestCommand(labels=["not a label"])
+            )
+        ]
+
+
+async def test_list_labels_reports_each_label_once_ascending(schema_repo, example_schema):
+    await _publish(schema_repo, {**example_schema, "name": "alpha"}, labels=["Payments"])
+    await _publish(
+        schema_repo, {**example_schema, "name": "beta"}, labels=["billing", "payments"]
+    )
+    assert [label async for label in _service(schema_repo).list_labels()] == [
+        "billing",
+        "payments",
+    ]

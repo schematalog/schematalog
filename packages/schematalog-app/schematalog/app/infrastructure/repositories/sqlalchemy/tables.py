@@ -63,4 +63,15 @@ schema = sa.Table(
         index=True,
         comment="Absolute URI of the version that supersedes this one (internal $id or external).",
     ),
+    # Mutable grouping metadata (per version, like the rest of its family). The domain
+    # hands every write a canonical set - folded, deduplicated, sorted - so the stored
+    # form is deterministic and the filter is exact membership, which no index is needed
+    # for at this scale: the backend filters the rows its one query already returned.
+    sa.Column(
+        "labels",
+        AdaptiveJSONColumn,
+        nullable=False,
+        server_default="[]",
+        comment="Grouping tags carried by this version (lowercase, sorted, deduplicated).",
+    ),
 )

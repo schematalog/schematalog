@@ -70,6 +70,28 @@
         </fieldset>
 
         <fieldset class="fieldset">
+            <legend class="fieldset-legend">Labels <span class="opacity-60">(optional)</span></legend>
+            <input
+                type="text"
+                name="labels"
+                value="{{ fields.labels }}"
+                placeholder="billing payments"
+                list="labels-in-use"
+                autocomplete="off"
+                class="input w-full"
+            >
+            {% if labels_in_use %}
+            <datalist id="labels-in-use">
+                {% for label in labels_in_use %}<option value="{{ label }}">{% endfor %}
+            </datalist>
+            {% endif %}
+            <p class="text-xs opacity-60">
+                Grouping tags, separated by spaces: lowercase letters, digits, '-', '_' and '.'.
+                Reusing an existing spelling keeps schemas findable under one label.
+            </p>
+        </fieldset>
+
+        <fieldset class="fieldset">
             <legend class="fieldset-legend">Document</legend>
             <textarea
                 name="json_schema"

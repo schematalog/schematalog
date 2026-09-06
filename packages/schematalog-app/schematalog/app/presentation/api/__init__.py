@@ -19,6 +19,7 @@ from schematalog.app.application.schema import (
     SchemaView,
 )
 from schematalog.app.presentation.api.schemas import (
+    LabelListResponse,
     SchemaListResponse,
     SchemaMetadataRequest,
     SchemaRequest,
@@ -71,18 +72,42 @@ async def get_schemas(
             ),
         ),
     ] = None,
+    label: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Narrow the listing to schemas carrying this label. Repeat the "
+                "parameter to require several: every one must be present, so adding a "
+                "label narrows the result. Matching is exact - `payment` does not "
+                "match `payments` - and case-insensitive, the same folding writes "
+                "apply. Composes with `q`: a schema must satisfy both."
+            )
+        ),
+    ] = None,
 ) -> SchemaListResponse:
     """Retrieve the latest versions of all published schemas, optionally filtered.
 
-    A query parameter on the collection rather than a separate search resource: this
-    narrows the same listing, in the same order, returning the same representation.
+    Query parameters on the collection rather than separate search or label resources:
+    they narrow the same listing, in the same order, returning the same representation.
     """
     return SchemaListResponse(
         schemas=[
             _to_response(view, request)
-            async for view in service.list_latest_schemas(ListLatestCommand(query=q))
+            async for view in service.list_latest_schemas(
+                ListLatestCommand(query=q, labels=label)
+            )
         ]
     )
+
+
+@router.get("/labels", response_model=LabelListResponse)
+async def get_labels(service: SchemaService = Depends(get_service)) -> LabelListResponse:
+    """List every label carried by a latest version, ascending, each once.
+
+    The discovery half of labelling: a publisher cannot reuse a spelling they cannot
+    see, and this is where they see it.
+    """
+    return LabelListResponse(labels=[label async for label in service.list_labels()])
 
 
 @router.post(
@@ -104,6 +129,7 @@ async def publish_schema(
             version=body.version,
             json_schema=body.json_schema,
             description=body.description,
+            labels=body.labels,
         )
     )
     result = _to_response(created, request)
@@ -193,18 +219,20 @@ async def update_schema_metadata(
     request: Request,
     service: SchemaService = Depends(get_service),
 ) -> SchemaResponse:
-    """Update a schema version's mutable metadata (owner only).
+    """Update a schema version's mutable metadata.
 
-    Carries `deprecated` and `successor`; immutable fields cannot be changed. An
-    internal successor that is self-referential or missing returns 422. The successor is
-    tri-state (omit = leave, null = clear, value = set): only when it is present in the
-    request body do we resolve it and carry it on the command. All error outcomes
-    (404/422/401/403) are mapped centrally by the app-level handlers.
+    Carries `deprecated`, `successor` and `labels`; immutable fields cannot be changed.
+    An internal successor that is self-referential or missing returns 422. The successor
+    is tri-state (omit = leave, null = clear, value = set): only when it is present in
+    the request body do we resolve it and carry it on the command. Labels are simpler:
+    omit leaves them, any array - including empty - replaces the set wholesale. All
+    error outcomes (404/422/401/403) are mapped centrally by the app-level handlers.
     """
     command_args: dict[str, Any] = {
         "name": schema_name,
         "version": version,
         "deprecated": body.deprecated,
+        "labels": body.labels,
     }
     if "successor" in body.model_fields_set:
         url = str(body.successor) if body.successor is not None else None

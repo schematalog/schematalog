@@ -499,9 +499,7 @@ class SchemaRepositoryConformance:
             s async for s in repository.list_latest(labels=SchemaLabels(labels=("billing",)))
         ] == []
         newer = await repository.get(SchemaIdentity(name="alpha", version="2"))
-        await repository.set_metadata(
-            newer.identity, labels=SchemaLabels(labels=("billing",))
-        )
+        await repository.set_metadata(newer.identity, labels=SchemaLabels(labels=("billing",)))
         assert [
             s.name
             async for s in repository.list_latest(labels=SchemaLabels(labels=("billing",)))

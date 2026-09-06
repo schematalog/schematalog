@@ -40,6 +40,15 @@
 
 {% if schema.description %}<p class="mb-4 opacity-90">{{ schema.description }}</p>{% endif %}
 
+{% if schema.labels %}
+<p class="mb-4 flex flex-wrap gap-1.5">
+    {% for label in schema.labels %}
+    <a class="badge badge-sm badge-outline"
+       href="{{ url_for('schemas_list').include_query_params(label=label) }}">{{ label }}</a>
+    {% endfor %}
+</p>
+{% endif %}
+
 <dl class="mb-4 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
     <dt class="font-semibold opacity-70">Canonical URL</dt>
     <dd class="break-all"><a href="{{ canonical_url }}" target="_blank" rel="noopener"

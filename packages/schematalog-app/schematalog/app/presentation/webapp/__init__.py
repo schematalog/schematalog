@@ -5,13 +5,14 @@ import re
 from typing import Annotated, Any
 import uuid
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from markupsafe import Markup, escape
 from pydantic import BaseModel, ValidationError
 
 from schematalog.app.application.exceptions import (
     DuplicateSchemaError,
+    InvalidLabelError,
     InvalidSchemaError,
     InvalidSearchQueryError,
 )
@@ -60,6 +61,7 @@ def _build_template_schema(view: SchemaView, request: Request) -> tuple[dict[str
         "schema": document,
         "deprecated": view.deprecated,
         "successor": str(view.successor) if view.successor is not None else None,
+        "labels": view.labels,
     }
     if view.description:
         data["description"] = view.description
@@ -75,26 +77,32 @@ async def homepage(request: Request):
 
 @router.get("/schemas/", name="schemas_list")
 async def schemas_list(
-    request: Request, q: str = "", service: SchemaService = Depends(get_service)
+    request: Request,
+    q: str = "",
+    label: Annotated[list[str] | None, Query()] = None,
+    service: SchemaService = Depends(get_service),
 ):
-    """Render the schema list, narrowed by `q` when one is given.
+    """Render the schema list, narrowed by `q` and/or label when given.
 
-    The query round-trips into the response so the box still shows what was searched
+    Both filters round-trip into the response so the page still shows what was asked
     for, and so the empty state can say which search found nothing rather than claiming
-    the registry is empty.
+    the registry is empty. The labels in use come along too - they are the filter's
+    affordance, one click applying what would otherwise have to be typed.
     """
-    # The API answers an unusable query with 422; a browser gets a page instead, because
-    # an error document is the wrong response to someone mistyping in a search box.
-    # The length cap is the API's, applied here too so the two surfaces accept the same
-    # queries; the API answers an unusable one with 422, a browser gets a page instead.
+    # The API answers an unusable query or label with 422; a browser gets a page instead,
+    # because an error document is the wrong response to someone mistyping in a search
+    # box. The length cap is the API's, applied here too so the two surfaces accept the
+    # same queries.
     try:
         if len(q) > settings.MAX_QUERY_LENGTH:
             raise InvalidSearchQueryError  # noqa: TRY301
         schemas = [
             _build_template_schema(view, request)[0]
-            async for view in service.list_latest_schemas(ListLatestCommand(query=q))
+            async for view in service.list_latest_schemas(
+                ListLatestCommand(query=q, labels=label)
+            )
         ]
-    except InvalidSearchQueryError:
+    except InvalidSearchQueryError, InvalidLabelError:
         schemas, valid = [], False
     else:
         valid = True
@@ -104,6 +112,8 @@ async def schemas_list(
         {
             "schemas": schemas,
             "query": q,
+            "labels": label or [],
+            "labels_in_use": [used async for used in service.list_labels()],
             "query_is_valid": valid,
             "max_query_length": settings.MAX_QUERY_LENGTH,
         },
@@ -163,6 +173,7 @@ class PublishForm(BaseModel):
     name: str = ""
     version: str = ""
     description: str = ""
+    labels: str = ""
     json_schema: str = ""
 
 
@@ -184,16 +195,24 @@ def _render_publish_response(
     error: str | None = None,
     status_code: int = HTTPStatus.OK,
     based_on: str | None = None,
+    labels_in_use: list[str] | None = None,
 ):
     """Render the publish form, echoing back what was submitted plus any error.
 
     `based_on` is the version a "publish a new version" form was seeded from; it only
-    changes the heading, so the page can say what it is continuing from.
+    changes the heading, so the page can say what it is continuing from. `labels_in_use`
+    feeds the label field's suggestions - the nudge towards reusing an existing
+    spelling rather than coining `payments` beside `payment`.
     """
     return templates.TemplateResponse(
         request,
         "publish.html.jinja",
-        {"fields": fields, "error": error, "based_on": based_on},
+        {
+            "fields": fields,
+            "error": error,
+            "based_on": based_on,
+            "labels_in_use": labels_in_use or [],
+        },
         status_code=status_code,
     )
 
@@ -243,6 +262,7 @@ async def schemas_publish(
     version" path off the detail page - with the version suggestion bumped, since
     republishing the same one is always a conflict. Otherwise it opens blank.
     """
+    labels_in_use = [used async for used in service.list_labels()]
     if not name:
         return _render_publish_response(
             request,
@@ -250,8 +270,10 @@ async def schemas_publish(
                 "name": "",
                 "version": "1.0",
                 "description": "",
+                "labels": "",
                 "json_schema": _STARTER_DOCUMENT,
             },
+            labels_in_use=labels_in_use,
         )
     view = await service.get_schema(GetSchemaCommand(name=name, version=version or None))
     return _render_publish_response(
@@ -260,12 +282,16 @@ async def schemas_publish(
             "name": view.name,
             "version": _suggest_next_version(view.version),
             "description": view.description,
+            # Carried forward like the description: a new version starts label-less
+            # otherwise, and quietly drops the schema from its groups (see DECISIONS.md).
+            "labels": " ".join(view.labels),
             # The stored document, not the one the detail page shows: that one carries a
             # stamped canonical `$id`, which publishing strips anyway - showing it in the
             # editor would imply it is part of the document the author maintains.
             "json_schema": json.dumps(view.document, indent=2),
         },
         based_on=view.version,
+        labels_in_use=labels_in_use,
     )
 
 
@@ -292,6 +318,9 @@ def _build_publish_command(fields: dict[str, str]) -> tuple[PublishCommand | Non
                 version=fields["version"],
                 json_schema=document,
                 description=fields["description"],
+                # Commas are accepted as separators too, so both habits parse; the
+                # service does the folding, deduplication and refusing.
+                labels=fields["labels"].replace(",", " ").split(),
             ),
             "",
         )
@@ -317,13 +346,26 @@ async def schemas_publish_submit(
         "name": form.name.strip(),
         "version": form.version.strip(),
         "description": form.description.strip(),
+        "labels": form.labels.strip(),
         "json_schema": form.json_schema,
     }
     command, error = _build_publish_command(fields)
+    labels_in_use = [used async for used in service.list_labels()]
     if command is None:
-        return _render_publish_response(request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY)
+        return _render_publish_response(
+            request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY, labels_in_use=labels_in_use
+        )
     try:
         view = await service.publish_schema(command)
+    except InvalidLabelError:
+        return _render_publish_response(
+            request,
+            fields,
+            "Labels are separated by spaces, and each may contain only letters, "
+            "digits, '-', '_' and '.'.",
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            labels_in_use=labels_in_use,
+        )
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
         # field breaking a domain constraint. The exact cap lives in the domain, which
@@ -334,6 +376,7 @@ async def schemas_publish_submit(
             "The document does not conform to any supported JSON Schema metaschema, "
             "or a field is longer than allowed.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
+            labels_in_use=labels_in_use,
         )
     except DuplicateSchemaError:
         return _render_publish_response(
@@ -341,6 +384,7 @@ async def schemas_publish_submit(
             fields,
             f"Version '{fields['version']}' of '{fields['name']}' already exists.",
             HTTPStatus.CONFLICT,
+            labels_in_use=labels_in_use,
         )
     return RedirectResponse(
         str(

@@ -144,6 +144,42 @@ def test_seeding_from_an_unknown_schema_is_a_404(client):
     assert client.get("/publish?name=nope").status_code == HTTPStatus.NOT_FOUND
 
 
+def test_publish_form_suggests_the_labels_in_use(client):
+    """Reusing a spelling is the whole point of the suggestion list."""
+    client.post("/publish", data=_form(labels="billing"))
+
+    response = client.get("/publish")
+
+    assert '<datalist id="labels-in-use">' in response.text
+    assert '<option value="billing">' in response.text
+
+
+def test_publishing_with_labels_shows_them_on_the_detail_page(client):
+    """Space- or comma-separated, and canonicalised: folded, deduplicated, sorted."""
+    client.post("/publish", data=_form(labels="Payments, billing payments"))
+
+    page = client.get("/schemas/customer").text
+
+    assert "/schemas/?label=billing" in page
+    assert "/schemas/?label=payments" in page
+
+
+def test_an_invalid_label_re_renders_the_form(client):
+    response = client.post("/publish", data=_form(labels="customer$data"))
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert "Labels are separated by spaces" in response.text
+
+
+def test_seeded_form_carries_the_labels_forward(client):
+    """A new version starts label-less otherwise, dropping the schema from its groups."""
+    client.post("/publish", data=_form(labels="billing payments"))
+
+    response = client.get("/publish?name=customer&version=1.0")
+
+    assert 'value="billing payments"' in response.text
+
+
 def test_detail_page_offers_a_new_version_to_members(client, published):
     response = client.get(f"/schemas/{published['name']}")
     assert "Publish a new version" in response.text

@@ -218,6 +218,45 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
     assert "Show every schema" in page
 
 
+def test_schema_list_filters_by_a_label(client, example_schema):
+    """The chips are plain links to the filtered listing, so they work with no JS."""
+    client.post("/api/schemas", json={**example_schema, "name": "alpha", "labels": ["billing"]})
+    client.post("/api/schemas", json={**example_schema, "name": "beta"})
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert "alpha" in page
+    assert "beta" not in page
+
+
+def test_schema_list_offers_the_labels_in_use(client, example_schema):
+    """Seeing the existing spellings is what steers a publisher away from coining more."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/").text
+
+    assert "/schemas/?label=billing" in page
+
+
+def test_schema_detail_links_each_label_to_the_filtered_list(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get(f"/schemas/{example_schema['name']}").text
+
+    assert "/schemas/?label=billing" in page
+
+
+def test_schema_list_says_which_label_found_nothing(client, example_schema):
+    """A fruitless filter must not read as an empty registry, like a fruitless search."""
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert "No schemas yet" not in page
+    assert "billing" in page
+    assert "Show every schema" in page
+
+
 def test_schema_list_refuses_a_query_longer_than_the_api_would_accept(client):
     """The two surfaces accept the same queries, and differ only in how they refuse.
 
@@ -233,7 +272,7 @@ def test_schema_list_refuses_a_query_longer_than_the_api_would_accept(client):
     )
     page = client.get("/schemas/", params={"q": over_the_cap})
     assert page.status_code == HTTPStatus.OK
-    assert "not something this search can look for" in page.text
+    assert "not something this registry can look for" in page.text
 
 
 def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, example_schema):
@@ -243,5 +282,5 @@ def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, exa
     response = client.get("/schemas/", params={"q": "ordér"})
 
     assert response.status_code == HTTPStatus.OK
-    assert "not something this search can look for" in response.text
+    assert "not something this registry can look for" in response.text
     assert example_schema["name"] not in response.text

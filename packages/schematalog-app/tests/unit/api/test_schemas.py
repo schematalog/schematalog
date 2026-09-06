@@ -24,6 +24,7 @@ def _view(
     description: str = "A test schema",
     deprecated: bool = False,
     successor: str | None = None,
+    labels: list[str] | None = None,
 ) -> SchemaView:
     return SchemaView(
         name="smoke",
@@ -34,6 +35,7 @@ def _view(
         published_on=datetime(2026, 1, 1, tzinfo=UTC),
         deprecated=deprecated,
         successor=successor,
+        labels=labels or [],
     )
 
 
@@ -91,9 +93,11 @@ def test_schema_response_serialises_to_flat_wire():
         "publication_id",
         "published_on",
         "deprecated",
+        "labels",
     }
     assert wire["schema"] == {"$schema": "https://example.com/draft", "type": "object"}
     assert wire["deprecated"] is False
+    assert wire["labels"] == []
 
 
 def test_schema_list_response_wraps_individuals():

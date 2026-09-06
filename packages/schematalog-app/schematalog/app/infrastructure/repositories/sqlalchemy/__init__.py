@@ -20,6 +20,7 @@ from schematalog.domain.schema import (
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SearchQuery,
@@ -116,6 +117,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             "publication_id": schema.publication_id,
             "deprecated": schema.deprecated,
             "successor_url": str(schema.successor) if schema.successor is not None else None,
+            "labels": list(schema.labels),
         }
         try:
             async with self.engine.begin() as conn:
@@ -142,6 +144,7 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         await self._ensure_tables()
         values: dict[str, object] = {}
@@ -149,6 +152,8 @@ class SQLAlchemySchemaRepository(SchemaRepository):
             values["deprecated"] = deprecated
         if successor is not UNSET:
             values["successor_url"] = str(successor) if successor is not None else None
+        if labels is not None:
+            values["labels"] = list(labels)
         if values:
             async with self.engine.begin() as conn:
                 result = await conn.execute(
@@ -191,7 +196,9 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         for row in rows:
             yield row.name
 
-    async def list_latest(self, *, query: SearchQuery | None = None) -> AsyncIterable[Schema]:
+    async def list_latest(
+        self, *, query: SearchQuery | None = None, labels: SchemaLabels | None = None
+    ) -> AsyncIterable[Schema]:
         await self._ensure_tables()
         # Correlated subquery: keep each name's latest by the same rule as `get_latest`.
         # ORDER BY ... LIMIT 1 rather than max(): PostgreSQL has no max() aggregate over
@@ -215,7 +222,13 @@ class SQLAlchemySchemaRepository(SchemaRepository):
         async with self.engine.connect() as conn:
             rows = (await conn.execute(stmt)).all()
         for row in rows:
-            yield self._row_to_schema(row)
+            schema = self._row_to_schema(row)
+            # Labels filter the rows the one query already returned rather than joining
+            # the SQL: exact set membership over a canonical set, and the guarantee
+            # (faster, never different) leaves a pushdown to a store that has one.
+            if labels is not None and not schema.labels.covers(labels):
+                continue
+            yield schema
 
     async def list_versions(self, schema_name: SchemaName) -> AsyncIterable[Schema]:
         await self._ensure_tables()
@@ -256,4 +269,5 @@ class SQLAlchemySchemaRepository(SchemaRepository):
                 if row.successor_url is not None
                 else None
             ),
+            labels=SchemaLabels(labels=row.labels),
         )

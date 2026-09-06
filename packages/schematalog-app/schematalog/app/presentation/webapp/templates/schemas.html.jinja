@@ -22,6 +22,22 @@
     {% endif %}
 </form>
 
+{# The labels in use are the filter's affordance: one click applies what would
+   otherwise have to be typed, and seeing the existing spellings is what steers a
+   publisher away from coining `payment` beside `payments`. #}
+{% if labels_in_use %}
+<div class="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
+    <span class="opacity-60">Labels:</span>
+    {% for used in labels_in_use %}
+    <a class="badge badge-sm {% if used in labels %}badge-primary{% else %}badge-outline{% endif %}"
+       href="{{ url_for('schemas_list').include_query_params(label=used) }}">{{ used }}</a>
+    {% endfor %}
+    {% if labels %}
+    <a class="link text-xs" href="{{ url_for('schemas_list') }}">Clear</a>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if schemas %}
 <div class="grid gap-4 sm:grid-cols-2">
     {% for schema in schemas %}
@@ -34,6 +50,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 {% if schema.deprecated %}<span class="badge badge-sm badge-warning">deprecated</span>{% endif %}
+                {% for label in schema.labels %}<span class="badge badge-sm badge-outline">{{ label }}</span>{% endfor %}
             </div>
             <p class="text-xs opacity-60">Published {{ schema.published_on|datetime }}</p>
         </div>
@@ -45,17 +62,20 @@
     {# Distinguish "your search found nothing" from "there is nothing here" - the same
        empty page otherwise tells a first-time visitor the registry is broken. #}
     {% if not query_is_valid %}
-    <p class="text-lg">That is not something this search can look for.</p>
+    <p class="text-lg">That is not something this registry can look for.</p>
     <p class="mt-2 text-sm">
-        Searches use letters, digits, <code>.</code>, <code>-</code> and <code>_</code>,
-        with spaces between words. Accented letters and other symbols are not
-        searchable yet.
+        Searches and labels use letters, digits, <code>.</code>, <code>-</code> and
+        <code>_</code>, with spaces between words. Accented letters and other symbols
+        are not searchable yet.
     </p>
     <p class="mt-2 text-sm">
         <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>
     </p>
-    {% elif query %}
-    <p class="text-lg">Nothing matches &ldquo;{{ query }}&rdquo;.</p>
+    {% elif query or labels %}
+    <p class="text-lg">
+        Nothing matches{% if query %} &ldquo;{{ query }}&rdquo;{% endif %}{% if labels %}{% if query %},{% endif %}
+        labelled {{ labels|join(", ") }}{% endif %}.
+    </p>
     <p class="mt-2 text-sm">
         <a class="link" href="{{ url_for('schemas_list') }}">Show every schema</a>
     </p>
