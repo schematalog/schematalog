@@ -53,6 +53,9 @@
     <dt class="font-semibold opacity-70">Canonical URL</dt>
     <dd class="break-all"><a href="{{ canonical_url }}" target="_blank" rel="noopener"
            class="link link-primary inline-flex items-center gap-1.5">{{ canonical_url }}{{ icon.external() }}{{ icon.new_tab_note() }}</a></dd>
+    <dt class="font-semibold opacity-70">Metadata URL</dt>
+    <dd class="break-all"><a href="{{ metadata_url }}" target="_blank" rel="noopener"
+           class="link link-primary inline-flex items-center gap-1.5">{{ metadata_url }}{{ icon.external() }}{{ icon.new_tab_note() }}</a></dd>
     <dt class="font-semibold opacity-70">Published</dt>
     <dd>{{ schema.published_on|datetime }}</dd>
 </dl>

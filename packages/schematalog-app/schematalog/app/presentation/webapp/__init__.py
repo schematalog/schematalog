@@ -156,6 +156,11 @@ async def schemas_detail(
             "render_property_type": render_property_type,
             "all_versions": all_versions,
             "canonical_url": url,
+            "metadata_url": str(
+                request.url_for(
+                    "get_schema_metadata", schema_name=view.name, version=view.version
+                )
+            ),
             "predecessors": predecessors,
         },
     )

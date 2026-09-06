@@ -218,6 +218,19 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
     assert "Show every schema" in page
 
 
+def test_schema_detail_links_to_the_metadata_record(client, example_schema):
+    """Where the page's metadata comes from over the API - the demonstrative half of
+    the two-endpoint split, next to the canonical document URL."""
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get(f"/schemas/{example_schema['name']}").text
+
+    assert (
+        f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}/metadata"
+        in page
+    )
+
+
 def test_schema_list_filters_by_a_label(client, example_schema):
     """The chips are plain links to the filtered listing, so they work with no JS."""
     client.post("/api/schemas", json={**example_schema, "name": "alpha", "labels": ["billing"]})
