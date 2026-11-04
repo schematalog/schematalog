@@ -42,9 +42,14 @@
 
 {% if schema.labels %}
 <p class="mb-4 flex flex-wrap gap-1.5">
+    {# The list filters on latest versions, so a link from an older one could find nothing. #}
     {% for label in schema.labels %}
+    {% if is_latest %}
     <a class="badge badge-sm badge-outline"
        href="{{ url_for('schemas_list').include_query_params(label=label) }}">{{ label }}</a>
+    {% else %}
+    <span class="badge badge-sm badge-outline">{{ label }}</span>
+    {% endif %}
     {% endfor %}
 </p>
 {% endif %}

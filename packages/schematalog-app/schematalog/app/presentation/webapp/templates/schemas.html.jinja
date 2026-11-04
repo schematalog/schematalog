@@ -16,24 +16,26 @@
     <input type="search" id="schema-search" name="q" value="{{ query }}"
            placeholder="Search schemas" autocomplete="off" maxlength="{{ max_query_length }}"
            class="input input-sm input-bordered w-full max-w-sm">
+    {% for active in labels %}<input type="hidden" name="label" value="{{ active }}">{% endfor %}
     <button type="submit" class="btn btn-sm">Search</button>
     {% if query %}
-    <a class="btn btn-sm btn-ghost" href="{{ url_for('schemas_list') }}">Clear</a>
+    <a class="btn btn-sm btn-ghost" href="{{ clear_query_url }}">Clear</a>
     {% endif %}
 </form>
 
-{# The labels in use are the filter's affordance: one click applies what would
-   otherwise have to be typed, and seeing the existing spellings is what steers a
-   publisher away from coining `payment` beside `payments`. #}
-{% if labels_in_use %}
+{# The labels in use are the filter's affordance: one click adds a label to the current
+   filters or removes it, and seeing the existing spellings is what steers a publisher
+   away from coining `payment` beside `payments`. #}
+{% if label_filters %}
 <div class="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
     <span class="opacity-60">Labels:</span>
-    {% for used in labels_in_use %}
-    <a class="badge badge-sm {% if used in labels %}badge-primary{% else %}badge-outline{% endif %}"
-       href="{{ url_for('schemas_list').include_query_params(label=used) }}">{{ used }}</a>
+    {% for filter in label_filters %}
+    <a class="badge badge-sm {% if filter.is_active %}badge-primary{% else %}badge-outline{% endif %}"
+       {% if filter.is_active %}aria-current="true"{% endif %}
+       href="{{ filter.url }}">{{ filter.label }}</a>
     {% endfor %}
     {% if labels %}
-    <a class="link text-xs" href="{{ url_for('schemas_list') }}">Clear</a>
+    <a class="link text-xs" href="{{ clear_labels_url }}">Clear</a>
     {% endif %}
 </div>
 {% endif %}

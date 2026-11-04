@@ -26,6 +26,7 @@ from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaErro
 
 # Re-exported for presentation, which must not import from `domain`.
 from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
+from schematalog.domain.schema import to_lowercase_ascii as to_lowercase_ascii
 from schematalog.domain.schema import (
     UNSET,
     JsonSchemaDocument,

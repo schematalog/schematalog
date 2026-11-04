@@ -246,6 +246,72 @@ def test_schema_detail_links_each_label_to_the_filtered_list(client, example_sch
     assert "/schemas/?label=billing" in page
 
 
+def test_a_label_badge_keeps_the_search_and_the_other_labels(client, example_schema):
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "pay", "labels": ["billing", "customer"]},
+    )
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert "/schemas/?q=pay&amp;label=billing&amp;label=customer" in page
+
+
+def test_an_active_label_badge_removes_that_label(client, example_schema):
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "pay", "labels": ["billing", "customer"]},
+    )
+
+    page = client.get("/schemas/", params={"label": ["billing", "customer"]}).text
+
+    assert 'href="http://testserver/schemas/?label=customer">billing</a>' in page
+
+
+def test_the_search_form_keeps_the_active_labels(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert '<input type="hidden" name="label" value="billing">' in page
+
+
+def test_clearing_the_search_keeps_the_labels(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "name": "pay", "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert 'href="http://testserver/schemas/?label=billing">Clear</a>' in page
+
+
+def test_clearing_the_labels_keeps_the_search(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "name": "pay", "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert 'href="http://testserver/schemas/?q=pay">Clear</a>' in page
+
+
+def test_a_label_filter_in_another_case_marks_its_badge_active(client, example_schema):
+    """Filtering folds case, so the badge showing the filter has to as well."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"label": "BILLING"}).text
+
+    assert 'aria-current="true"' in page
+
+
+def test_an_older_version_shows_its_labels_without_linking_them(client, example_schema):
+    """The list filters on latest versions, so such a link would find nothing."""
+    client.post("/api/schemas", json={**example_schema, "version": "1", "labels": ["retired"]})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+
+    page = client.get(f"/schemas/{example_schema['name']}", params={"version": "1"}).text
+
+    assert ">retired</span>" in page
+    assert "/schemas/?label=retired" not in page
+
+
 def test_schema_list_says_which_label_found_nothing(client, example_schema):
     """A fruitless filter must not read as an empty registry, like a fruitless search."""
     client.post("/api/schemas", json=example_schema)

@@ -3,6 +3,7 @@ from http import HTTPStatus
 import json
 import re
 from typing import Annotated, Any
+from urllib.parse import urlencode
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -24,6 +25,7 @@ from schematalog.app.application.schema import (
     PublishCommand,
     SchemaService,
     SchemaView,
+    to_lowercase_ascii,
 )
 from schematalog.app.presentation.helpers.property_type import render_property_type
 from schematalog.app.presentation.helpers.urls import canonical_url_for, stamp_canonical_id
@@ -75,6 +77,46 @@ async def homepage(request: Request):
     return templates.TemplateResponse(request=request, name="index.html.jinja")
 
 
+def _build_list_url(request: Request, query: str, labels: list[str]) -> str:
+    """Build the schema list's URL for a search and a set of labels.
+
+    Args:
+        request: The current request, which supplies the route.
+        query: The search text; empty leaves it out of the URL.
+        labels: The labels to filter on.
+
+    Returns:
+        The absolute URL of that listing.
+    """
+    params = [("q", query)] if query else []
+    params.extend(("label", label) for label in labels)
+    return str(request.url_for("schemas_list").replace(query=urlencode(params)))
+
+
+def _build_label_filters(
+    request: Request, query: str, labels_in_use: list[str], active_labels: list[str]
+) -> list[dict[str, Any]]:
+    """Build the list page's label badges, each toggling itself in the current filters.
+
+    Args:
+        request: The current request, which supplies the route.
+        query: The current search text, which every badge keeps.
+        labels_in_use: The labels to offer.
+        active_labels: The labels currently filtered on.
+
+    Returns:
+        Each label with whether it is active and the URL that toggles it.
+    """
+    return [
+        {
+            "label": used,
+            "is_active": used in active_labels,
+            "url": _build_list_url(request, query, sorted(set(active_labels) ^ {used})),
+        }
+        for used in labels_in_use
+    ]
+
+
 @router.get("/schemas/", name="schemas_list")
 async def schemas_list(
     request: Request,
@@ -106,14 +148,18 @@ async def schemas_list(
         schemas, valid = [], False
     else:
         valid = True
+    active_labels = sorted({to_lowercase_ascii(used) for used in label or []})
+    labels_in_use = [used async for used in service.list_labels()]
     return templates.TemplateResponse(
         request,
         "schemas.html.jinja",
         {
             "schemas": schemas,
             "query": q,
-            "labels": label or [],
-            "labels_in_use": [used async for used in service.list_labels()],
+            "labels": active_labels,
+            "label_filters": _build_label_filters(request, q, labels_in_use, active_labels),
+            "clear_query_url": _build_list_url(request, "", active_labels),
+            "clear_labels_url": _build_list_url(request, q, []),
             "query_is_valid": valid,
             "max_query_length": settings.MAX_QUERY_LENGTH,
         },
@@ -129,6 +175,7 @@ async def schemas_detail(
 ):
     """Retrieve a version of a schema (the latest if none is selected)."""
     view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version or None))
+    latest = await service.get_schema(GetSchemaCommand(name=schema_name)) if version else view
     serialized, url = _build_template_schema(view, request)
     all_versions = [
         v.version
@@ -152,6 +199,7 @@ async def schemas_detail(
         "schema.html.jinja",
         {
             "current_version": version,
+            "is_latest": view.version == latest.version,
             "schema": serialized,
             "render_property_type": render_property_type,
             "all_versions": all_versions,
