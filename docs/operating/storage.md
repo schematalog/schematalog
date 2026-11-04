@@ -115,7 +115,7 @@ worth building one when:
 It is *not* worth building one for performance. If SQLite is slow for your catalog,
 something else is wrong.
 
-A backend implements five methods; three more are derived for you, including the rule for
+A backend implements five methods; four more are derived for you, including the rule for
 which version counts as "latest", so you inherit that rather than reimplementing it.
 `schematalog.testing.SchemaRepositoryConformance` is the contract as a test suite - you
 subclass it, supply one fixture, and it tells you whether your backend is correct.

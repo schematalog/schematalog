@@ -14,8 +14,8 @@ pip install schematalog-core[testing]
 ## Writing a storage backend
 
 A backend implements five methods — `add`, `get`, `set_metadata`, `list_versions` and
-`list_names`. Three more (`get_latest`, `list_latest`, `list_predecessors`) are derived
-for you by `SchemaRepository`, including the rule for which version counts as *latest*,
+`list_names`. Four more (`get_latest`, `list_latest`, `list_predecessors`, `list_labels`)
+are derived for you by `SchemaRepository`, including the rule for which version counts as *latest*,
 so you inherit that rather than reimplementing it. Override them only if your store can
 answer them better.
 
