@@ -22,7 +22,7 @@ unwritable directory all start perfectly well and fail on the first request inst
 
 ```shell
 $ schematalog check
-schematalog 0.2.2
+schematalog 0.2.3
 storage scheme: sqlite (recognised)
 store:          reachable
 ```

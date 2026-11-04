@@ -20,7 +20,7 @@ dependencies = [
     # two-minute evaluation takes.
     "aiosqlite>=0.20.0",
     "asyncpg>=0.31.0",
-    "datamodel-code-generator[black,isort]>=0.78.0",
+    "datamodel-code-generator>=0.89.0",
     "fastapi>=0.122.0",
     "jinja2>=3.1.4",
     "markupsafe>=2.1.0",

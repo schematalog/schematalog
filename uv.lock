@@ -384,14 +384,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/8c/c4a64a9dd4805833ea4815c9ed552c36f38b956a8fe913a8b799f058f388/datamodel_code_generator-0.89.0-py3-none-any.whl", hash = "sha256:18b077547244dfc5679057471e30a1170e048e8b4dc7b4871c6d3ef9cc8b8716", size = 2134331, upload-time = "2026-11-04T09:05:22.292Z" },
 ]
 
-[package.optional-dependencies]
-black = [
-    { name = "black", marker = "sys_platform != 'emscripten'" },
-]
-isort = [
-    { name = "isort", marker = "sys_platform != 'emscripten'" },
-]
-
 [[package]]
 name = "deptry"
 version = "0.25.1"
@@ -1279,7 +1271,7 @@ wheels = [
 
 [[package]]
 name = "schematalog"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "packages/schematalog" }
 dependencies = [
     { name = "schematalog-app" },
@@ -1294,7 +1286,7 @@ source = { editable = "packages/schematalog-app" }
 dependencies = [
     { name = "aiosqlite" },
     { name = "asyncpg" },
-    { name = "datamodel-code-generator", extra = ["black", "isort"] },
+    { name = "datamodel-code-generator" },
     { name = "fastapi" },
     { name = "jinja2" },
     { name = "markupsafe" },
@@ -1312,7 +1304,7 @@ dependencies = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "datamodel-code-generator", extras = ["black", "isort"], specifier = ">=0.78.0" },
+    { name = "datamodel-code-generator", specifier = ">=0.89.0" },
     { name = "fastapi", specifier = ">=0.122.0" },
     { name = "jinja2", specifier = ">=3.1.4" },
     { name = "markupsafe", specifier = ">=2.1.0" },
