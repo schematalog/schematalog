@@ -1,16 +1,16 @@
-"""Populate the configured storage with sample schemas - a dev/local fixture loader.
+"""Populate the configured storage with sample schemas, locally or on a demo instance.
 
 Idempotent - schemas that already exist are skipped, so it is safe to re-run.
 Targets whatever backend `.env` / `Settings` points at (SQLite by default, or the
 compose Postgres). Publishing goes through `SchemaService`, so the samples are
-metaschema-validated exactly like real input. Kept
-out of the operator CLI (`schematalog.app.presentation.cli`) as it loads dev fixtures, not
-a production operation.
+metaschema-validated exactly like real input.
 
     just seed
+    just seed --base-url https://schematalog.com
     # or: uv run python -m scripts.seed
 """
 
+import argparse
 import asyncio
 from typing import Any
 
@@ -167,32 +167,37 @@ SAMPLE_SCHEMAS: list[tuple[str, str, dict[str, Any]]] = [
     ),
 ]
 
-# Local canonical-URL base for *internal* successor references in the seed - the host
-# the dev server is browsed on (`just serve` listens on :3000). The "Superseded by" link
-# renders whatever URL is stored regardless; the derived "Supersedes" predecessor link
-# only resolves when the app is browsed via this same base (else the canonical URLs differ).
-LOCAL_BASE = "http://localhost:3000"
+# Where `just serve` is browsed.
+_DEFAULT_BASE_URL = "http://localhost:3000"
 
 
-def _local_url(name: str, version: str) -> str:
-    return f"{LOCAL_BASE}/api/schemas/{name}/versions/{version}"
+def _build_sample_metadata(
+    base_url: str,
+) -> list[tuple[str, str, bool, str | None, SchemaIdentity | None]]:
+    """Build the lifecycle metadata to apply after publishing.
 
+    Args:
+        base_url: Where the instance is browsed. An internal successor is stored under it,
+            and the derived predecessor link only resolves when the instance is browsed
+            there, since that is what the canonical URLs are built from.
 
-# Mutable lifecycle metadata applied *after* publishing, to exercise the new fields.
-# Each row: schema name, version, the deprecated flag, the successor URL, and the internal
-# successor target to existence-check - or a None target for an external successor URL.
-SAMPLE_METADATA: list[tuple[str, str, bool, str | None, SchemaIdentity | None]] = [
-    # example.order 1.1 is deprecated, superseded by 2.0 (an internal reference).
-    (
-        "example.order",
-        "1.1",
-        True,
-        _local_url("example.order", "2.0"),
-        SchemaIdentity(name="example.order", version="2.0"),
-    ),
-    # example.product 1.0 is deprecated, superseded by a schema in an external registry.
-    ("example.product", "1.0", True, "https://schemas.example.com/product/v2.json", None),
-]
+    Returns:
+        A row per version: name, version, the deprecated flag, the successor URL, and the
+        internal successor target to existence-check, which is `None` for an external URL.
+    """
+    root = base_url.rstrip("/")
+    return [
+        # Deprecated and superseded by a later version of itself.
+        (
+            "example.order",
+            "1.1",
+            True,
+            f"{root}/api/schemas/example.order/versions/2.0",
+            SchemaIdentity(name="example.order", version="2.0"),
+        ),
+        # Deprecated and superseded by a schema in an external registry.
+        ("example.product", "1.0", True, "https://schemas.example.com/product/v2.json", None),
+    ]
 
 
 async def _publish_samples(service: SchemaService) -> tuple[int, int]:
@@ -212,9 +217,14 @@ async def _publish_samples(service: SchemaService) -> tuple[int, int]:
     return created, skipped
 
 
-async def _apply_metadata(service: SchemaService) -> None:
-    """Apply the deprecated/successor metadata to the relevant samples (idempotent)."""
-    for name, version, deprecated, successor_url, target in SAMPLE_METADATA:
+async def _apply_metadata(service: SchemaService, base_url: str = _DEFAULT_BASE_URL) -> None:
+    """Apply the deprecated/successor metadata to the relevant samples (idempotent).
+
+    Args:
+        service: The service to apply it through.
+        base_url: Where the instance is browsed.
+    """
+    for name, version, deprecated, successor_url, target in _build_sample_metadata(base_url):
         args: dict[str, Any] = {"name": name, "version": version, "deprecated": deprecated}
         if successor_url is not None:
             args["successor"] = SuccessorReference(url=successor_url)
@@ -224,13 +234,17 @@ async def _apply_metadata(service: SchemaService) -> None:
         print(f"  meta  {name} {version} (deprecated={deprecated}, successor={successor_url})")
 
 
-async def seed() -> None:
-    """Publish every sample schema into the configured storage, then stamp lifecycle metadata."""
+async def seed(base_url: str = _DEFAULT_BASE_URL) -> None:
+    """Publish every sample schema into the configured storage, then stamp lifecycle metadata.
+
+    Args:
+        base_url: Where the instance is browsed.
+    """
     repo = build_schema_repository(settings.STORAGE_URL)
     service = SchemaService(repo)
     try:
         created, skipped = await _publish_samples(service)
-        await _apply_metadata(service)
+        await _apply_metadata(service, base_url)
     finally:
         # The SQLAlchemy backend holds an engine; release its connections cleanly.
         engine = getattr(repo, "engine", None)
@@ -240,4 +254,10 @@ async def seed() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    parser = argparse.ArgumentParser(description="Populate the storage with sample schemas.")
+    parser.add_argument(
+        "--base-url",
+        default=_DEFAULT_BASE_URL,
+        help="where the instance is browsed, for its internal successor links",
+    )
+    asyncio.run(seed(parser.parse_args().base_url))
