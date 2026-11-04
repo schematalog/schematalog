@@ -46,8 +46,9 @@ The `successor` field is **tri-state** on `PATCH`:
 
 ## How relationships are served
 
-`GET /api/schemas/{name}/versions/{version}` advertises lifecycle relationships as
-[RFC 5829](https://www.rfc-editor.org/rfc/rfc5829) `Link` headers:
+`GET /api/schemas/{name}/versions/{version}` and its
+[`/metadata` record](retrieving.md#a-versions-complete-record) both advertise lifecycle
+relationships as [RFC 5829](https://www.rfc-editor.org/rfc/rfc5829) `Link` headers:
 
 ```
 Link: <https://schematalog.com/api/schemas/address/versions/2.0.0>; rel="successor-version",
