@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.14.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -1270,7 +1270,7 @@ wheels = [
 
 [[package]]
 name = "schematalog"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "packages/schematalog" }
 dependencies = [
     { name = "schematalog-app" },
@@ -1378,6 +1378,7 @@ tests = [
 name = "schematalog-workspace"
 version = "0"
 source = { virtual = "." }
+default-groups = "all"
 dependencies = [
     { name = "schematalog-app" },
     { name = "schematalog-core" },
