@@ -8,9 +8,11 @@ There are three read shapes, plus a name-only convenience redirect.
 | `GET /api/schemas/{name}/versions` | All versions of one name, newest first. |
 | `GET /api/schemas/{name}/versions/{version}` | The JSON Schema document for one version (its canonical URL). |
 | `GET /api/schemas/{name}` | `302` redirect to the latest version's canonical URL. |
+| `GET /api/labels` | Every label [in use](#filtering-by-label), ascending. |
 
 The list endpoints return the wire DTO (`name`, `version`, `canonical_url`,
-`description`, `schema`, `publication_id`, `published_on`, `deprecated`, `successor`).
+`description`, `schema`, `publication_id`, `published_on`, `deprecated`, `successor`,
+`labels`).
 The single-version endpoint returns the **JSON Schema document itself** — so the
 URL is directly usable as a `$ref` target.
 
@@ -89,6 +91,33 @@ instance is configured with, and each is free to answer it however it can answer
 fastest - so the promise is kept small enough that every backend can keep it *exactly*.
 A backend may be quicker; it may not be different. The published conformance suite
 tests this, which is why a backend cannot quietly turn on stemming.
+
+## Filtering by label
+
+`GET /api/schemas` also accepts a `label` parameter, which narrows the listing to schemas
+whose latest version carries that [label](publishing.md#labels):
+
+```shell
+curl "https://schematalog.com/api/schemas?label=billing&label=customer-data"
+```
+
+Repeating the parameter narrows further, because a schema must carry every label asked
+for, and it combines with `q` in the same way. The match ignores case but is otherwise
+exact, so `payment` does not find `payments`: a label is a token to group by, not text to
+search. A label that breaks [the rules for labels](publishing.md#labels) returns `422`.
+
+To see which labels exist, ask for them:
+
+```shell
+curl "https://schematalog.com/api/labels"
+```
+
+```json
+{ "labels": ["billing", "customer-data"] }
+```
+
+Both look at latest versions only, so a label carried only by an older version neither
+appears in that list nor finds its schema.
 
 ## Canonical `$id`
 
