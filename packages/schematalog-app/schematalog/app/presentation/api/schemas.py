@@ -31,6 +31,15 @@ class SchemaRequest(FrozenModel):
     json_schema: Annotated[
         dict[str, Any], Field(alias="schema", description="The JSON Schema document.")
     ]
+    labels: Annotated[
+        list[str],
+        Field(
+            description=(
+                "Grouping tags for this version: lowercase letters, digits, '-', '_' "
+                "and '.', folded to lowercase, deduplicated and sorted."
+            )
+        ),
+    ] = Field(default_factory=list)
 
 
 class SchemaMetadataRequest(FrozenModel):
@@ -54,6 +63,15 @@ class SchemaMetadataRequest(FrozenModel):
             description=(
                 "URI of the version that supersedes this one; null clears it, "
                 "omit to leave it unchanged."
+            )
+        ),
+    ] = None
+    labels: Annotated[
+        list[str] | None,
+        Field(
+            description=(
+                "New label set, replacing the old one wholesale; an empty array "
+                "clears all labels, omit to leave them unchanged."
             )
         ),
     ] = None
@@ -85,6 +103,15 @@ class SchemaResponse(FrozenModel):
     successor: Annotated[
         str | None, Field(description="URI of the version that supersedes this one, if any.")
     ] = None
+    labels: Annotated[
+        list[str],
+        Field(
+            description=(
+                "Grouping tags carried by this version - lowercase, sorted, "
+                "deduplicated; possibly empty, never null."
+            )
+        ),
+    ]
 
     @classmethod
     def from_view(
@@ -101,6 +128,7 @@ class SchemaResponse(FrozenModel):
             published_on=view.published_on,
             deprecated=view.deprecated,
             successor=str(view.successor) if view.successor is not None else None,
+            labels=view.labels,
         )
 
 
@@ -108,3 +136,12 @@ class SchemaListResponse(FrozenModel):
     """Response model for a list of schemas."""
 
     schemas: Annotated[list[SchemaResponse], Field(description="The schemas in this response.")]
+
+
+class LabelListResponse(FrozenModel):
+    """Response model for the labels-in-use listing."""
+
+    labels: Annotated[
+        list[str],
+        Field(description="Every label carried by a latest version, ascending, each once."),
+    ]

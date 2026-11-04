@@ -14,16 +14,19 @@ What it offers:
   JavaScript turned off. It matches exactly what [the API's `q` parameter](../api/retrieving.md#searching)
   matches, being the same call - though where the API answers an unusable query with
   `422`, the page says what went wrong and leaves the box ready to correct, an error
-  document being the wrong response to a typo.
-- **A schema's page** (`/schemas/{name}`) - the document, its description, its
-  properties, and a version picker. Deprecated versions are badged, and a version
-  with a successor links to it. Code blocks are highlighted server-side and have a
-  copy button.
+  document being the wrong response to a typo. The labels in use appear as badges above
+  the list: clicking one adds it to the current filters, and clicking it again removes it.
+- **A schema's page** (`/schemas/{name}`) - the document, its description, its labels,
+  its properties, and a version picker. Deprecated versions are badged, and a version
+  with a successor links to it. On the latest version, each label links to the list
+  filtered by it. Code blocks are highlighted server-side and have a copy button.
 - **[Format conversion](formats.md)** - the same document rendered as JSON, YAML,
   Avro, or generated Pydantic models. This is the one capability that exists only
   here and has no API equivalent.
 - **A publish form** (`/publish`) - the same operation as `POST /api/schemas`, with
-  a schema editor, for a one-off publication you would otherwise write `curl` for.
+  a schema editor, for a one-off publication you would otherwise write `curl` for. It
+  lists the labels in use, and when opened from a schema's page it starts with that
+  version's labels.
 
 Nothing here requires JavaScript to work; the editor and the copy buttons enhance
 pages that already function without them.

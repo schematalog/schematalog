@@ -24,6 +24,7 @@ POST /api/schemas
 | `version` | yes | Opaque version string you choose. |
 | `schema` | yes | The JSON Schema document itself. |
 | `description` | no | Free-text description (rendered as Markdown in the UI). |
+| `labels` | no | Tags to [group this version under](#labels). |
 
 !!! tip "`schema` vs `json_schema`"
     The wire field is `schema`. (Internally it maps to `json_schema`; both names are
@@ -54,8 +55,44 @@ enforced would have to be part of a schema's address, and the address is the can
 forbidden or would break a permalink. Leaving grouping to the name costs nothing and
 forces nobody: adopt dots, adopt some other separator, or use flat names.
 
-If you want prefixes to *mean* something rather than merely read well, that is what
-labels will be for; `DECISIONS.md` in the repository records why grouping stayed soft.
+If you want grouping to *mean* something rather than merely read well, that is what
+[labels](#labels) are for; `DECISIONS.md` in the repository records why grouping stayed
+soft.
+
+## Labels
+
+A label is a free-form tag on one version, used to group schemas and to
+[filter the listing](retrieving.md#filtering-by-label). Set them when publishing:
+
+```json
+{
+  "name": "address",
+  "version": "1.0.0",
+  "labels": ["billing", "customer-data"],
+  "schema": { "type": "object" }
+}
+```
+
+A label may contain letters, digits, `-`, `_` and `.`, must start with a letter or a digit,
+and may be up to 256 characters long. A version may carry up to 32. Labels are stored in lowercase, without duplicates and in sorted
+order, so `Billing` and `billing` are the same label. A response always includes
+`labels`, as an empty list if there are none.
+
+Unlike a schema document, labels can change after publishing. `PATCH` replaces the whole
+set, an empty list clears it, and leaving the field out keeps it as it is:
+
+```shell
+curl -X PATCH https://schematalog.com/api/schemas/address/versions/1.0.0 \
+  -H "Content-Type: application/json" \
+  -d '{"labels": ["billing"]}'
+```
+
+**Labels belong to one version.** A new version published through the API starts with
+none, so it drops out of its groups until you label it. In the web UI, **Publish a new
+version** on a schema's page opens the form with that version's labels already filled in.
+
+Nothing stops two spellings of one idea, such as `payment` and `payments`. To reuse an
+existing spelling, check [the labels in use](retrieving.md#filtering-by-label) first.
 
 ## Versioning
 

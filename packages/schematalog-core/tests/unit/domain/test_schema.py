@@ -6,12 +6,14 @@ from pydantic import ValidationError
 import pytest
 
 from schematalog.domain.schema import (
+    MAX_LABELS_PER_SCHEMA,
     NAME_PATTERN,
     QUERY_PATTERN,
     JsonSchemaDocument,
     Schema,
     SchemaDescription,
     SchemaIdentity,
+    SchemaLabels,
     SearchQuery,
     SuccessorReference,
     ValueObject,
@@ -110,6 +112,75 @@ def test_json_schema_document_serializes_flat_to_dict():
     assert doc.model_dump() == payload
 
 
+# ---- SchemaLabels ------------------------------------------------------------------
+
+
+def test_schema_labels_fold_to_lowercase_on_the_way_in():
+    labels = SchemaLabels(labels=("Payments", "BILLING"))
+    assert list(labels) == ["billing", "payments"]
+
+
+def test_schema_labels_deduplicate_after_folding():
+    """`Payments` and `payments` are one label spelled twice, not two."""
+    labels = SchemaLabels(labels=("Payments", "payments", "PAYMENTS"))
+    assert list(labels) == ["payments"]
+
+
+def test_schema_labels_sort_canonically():
+    """Sorted on write, so the same set serialises to the same bytes every time."""
+    labels = SchemaLabels(labels=("zebra", "apple", "mango"))
+    assert list(labels) == ["apple", "mango", "zebra"]
+
+
+def test_schema_labels_compare_by_value_regardless_of_input_order():
+    assert SchemaLabels(labels=("b", "a")) == SchemaLabels(labels=("a", "b"))
+
+
+def test_schema_labels_reject_a_character_outside_the_name_alphabet():
+    with pytest.raises(ValidationError):
+        SchemaLabels(labels=("customer data",))
+
+
+def test_schema_labels_refuse_more_than_the_cap():
+    too_many = tuple(f"label-{i}" for i in range(MAX_LABELS_PER_SCHEMA + 1))
+    with pytest.raises(ValidationError):
+        SchemaLabels(labels=too_many)
+
+
+def test_schema_labels_count_duplicates_once_against_the_cap():
+    """The cap guards what is stored; the same label spelled forty ways stores one."""
+    labels = SchemaLabels(labels=tuple(f"LABEL-{i % 3}" for i in range(40)))
+    assert len(labels) == 3
+
+
+def test_schema_labels_accept_a_bare_string_as_one_label():
+    assert list(SchemaLabels.model_validate("payments")) == ["payments"]
+
+
+def test_schema_labels_read_a_string_field_value_as_one_label():
+    labels = SchemaLabels(labels="payments")
+
+    assert list(labels) == ["payments"]
+
+
+@pytest.mark.parametrize("raw", [[1], None, 1, {"billing": 1}])
+def test_schema_labels_refuse_input_that_is_not_strings(raw):
+    """A malformed stored record fails validation rather than crashing it."""
+    with pytest.raises(ValidationError):
+        SchemaLabels(labels=raw)
+
+
+def test_schema_labels_serialise_flat_to_a_list():
+    assert SchemaLabels(labels=("b", "a")).model_dump() == ["a", "b"]
+
+
+def test_schema_labels_cover_a_subset_and_not_a_superset():
+    held = SchemaLabels(labels=("billing", "customer"))
+    assert held.covers(SchemaLabels(labels=("billing",)))
+    assert held.covers(SchemaLabels(labels=()))
+    assert not held.covers(SchemaLabels(labels=("billing", "shipping")))
+
+
 # ---- Schema wire behaviour ---------------------------------------------------------
 
 
@@ -189,6 +260,18 @@ def test_schema_deserialise_accepts_json_string():
     payload = _sample_payload()
     schema = Schema.deserialize(json.dumps(payload))
     assert schema.identity.name == "smoke"
+
+
+def test_schema_defaults_absent_labels_to_an_empty_set():
+    """Stores written before labels existed read fine - the missing key defaults."""
+    schema = Schema.deserialize(_sample_payload())
+    assert list(schema.labels) == []
+
+
+def test_schema_round_trip_preserves_labels():
+    schema = Schema.model_validate({**_sample_payload(), "labels": ["Payments", "billing"]})
+    assert schema.serialize()["labels"] == ["billing", "payments"]
+    assert list(Schema.deserialize(schema.serialize()).labels) == ["billing", "payments"]
 
 
 def test_schema_round_trip_preserves_deprecated():

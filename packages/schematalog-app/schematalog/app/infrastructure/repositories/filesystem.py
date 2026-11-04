@@ -9,6 +9,7 @@ from schematalog.domain.schema import (
     UNSET,
     Schema,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SuccessorReference,
@@ -45,6 +46,7 @@ class FilesystemSchemaRepository(SchemaRepository):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         return await asyncio.to_thread(
             self._set_metadata_sync,
@@ -52,6 +54,7 @@ class FilesystemSchemaRepository(SchemaRepository):
             identity.version,
             deprecated,
             successor,
+            labels,
         )
 
     async def list_names(self) -> AsyncIterable[SchemaName]:
@@ -82,12 +85,15 @@ class FilesystemSchemaRepository(SchemaRepository):
         version: str,
         deprecated: bool | None,
         successor: SuccessorReference | None | Unset,
+        labels: SchemaLabels | None,
     ) -> Schema:
         schema = self._get_sync(schema_name, version)
         if deprecated is not None:
             schema.deprecated = deprecated
         if successor is not UNSET:
             schema.successor = successor
+        if labels is not None:
+            schema.labels = labels
         # Overwrite in place (create=False): identity and publication_id are untouched.
         self._save_to_file(schema, create=False)
         return schema

@@ -1,5 +1,7 @@
 from http import HTTPStatus
 
+import pytest
+
 from schematalog.app.presentation import app
 from schematalog.app.presentation.helpers import buildinfo
 from schematalog.app.wiring.config import settings
@@ -218,6 +220,141 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
     assert "Show every schema" in page
 
 
+def test_schema_list_filters_by_a_label(client, example_schema):
+    """The chips are plain links to the filtered listing, so they work with no JS."""
+    client.post("/api/schemas", json={**example_schema, "name": "alpha", "labels": ["billing"]})
+    client.post("/api/schemas", json={**example_schema, "name": "beta"})
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert "alpha" in page
+    assert "beta" not in page
+
+
+def test_schema_list_offers_the_labels_in_use(client, example_schema):
+    """Seeing the existing spellings is what steers a publisher away from coining more."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/").text
+
+    assert "/schemas/?label=billing" in page
+
+
+def test_schema_detail_links_each_label_to_the_filtered_list(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get(f"/schemas/{example_schema['name']}").text
+
+    assert "/schemas/?label=billing" in page
+
+
+def test_a_label_badge_keeps_the_search_and_the_other_labels(client, example_schema):
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "pay", "labels": ["billing", "customer"]},
+    )
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert "/schemas/?q=pay&amp;label=billing&amp;label=customer" in page
+
+
+def test_a_label_badge_encodes_a_search_of_several_words(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay now"}).text
+
+    assert "/schemas/?q=pay+now&amp;label=billing" in page
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"q": "ordér"}, {"label": "bad label"}, {"q": "ordér", "label": "billing"}],
+)
+def test_a_label_badge_leaves_out_a_refused_filter(client, example_schema, params):
+    """Following a badge has to lead somewhere other than the same refusal."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params=params).text
+
+    assert 'href="http://testserver/schemas/?label=billing">billing</a>' in page
+
+
+def test_the_search_form_leaves_out_a_refused_label(client, example_schema):
+    """A corrected search must not be refused again over a label it cannot see."""
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get("/schemas/", params={"label": "bad label"}).text
+
+    assert 'name="label"' not in page
+
+
+def test_an_active_label_badge_removes_that_label(client, example_schema):
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "pay", "labels": ["billing", "customer"]},
+    )
+
+    page = client.get("/schemas/", params={"label": ["billing", "customer"]}).text
+
+    assert 'href="http://testserver/schemas/?label=customer">billing</a>' in page
+
+
+def test_the_search_form_keeps_the_active_labels(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert '<input type="hidden" name="label" value="billing">' in page
+
+
+def test_clearing_the_search_keeps_the_labels(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "name": "pay", "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert 'href="http://testserver/schemas/?label=billing">Clear</a>' in page
+
+
+def test_clearing_the_labels_keeps_the_search(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "name": "pay", "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
+
+    assert 'href="http://testserver/schemas/?q=pay">Clear</a>' in page
+
+
+def test_a_label_filter_in_another_case_marks_its_badge_active(client, example_schema):
+    """Filtering folds case, so the badge showing the filter has to as well."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"label": "BILLING"}).text
+
+    assert 'aria-current="true"' in page
+
+
+def test_an_older_version_shows_its_labels_without_linking_them(client, example_schema):
+    """The list filters on latest versions, so such a link would find nothing."""
+    client.post("/api/schemas", json={**example_schema, "version": "1", "labels": ["retired"]})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+
+    page = client.get(f"/schemas/{example_schema['name']}", params={"version": "1"}).text
+
+    assert ">retired</span>" in page
+    assert "/schemas/?label=retired" not in page
+
+
+def test_schema_list_says_which_label_found_nothing(client, example_schema):
+    """A fruitless filter must not read as an empty registry, like a fruitless search."""
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get("/schemas/", params={"label": "billing"}).text
+
+    assert "No schemas yet" not in page
+    assert "billing" in page
+    assert "Show every schema" in page
+
+
 def test_schema_list_refuses_a_query_longer_than_the_api_would_accept(client):
     """The two surfaces accept the same queries, and differ only in how they refuse.
 
@@ -233,7 +370,7 @@ def test_schema_list_refuses_a_query_longer_than_the_api_would_accept(client):
     )
     page = client.get("/schemas/", params={"q": over_the_cap})
     assert page.status_code == HTTPStatus.OK
-    assert "not something this search can look for" in page.text
+    assert "not something this registry can look for" in page.text
 
 
 def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, example_schema):
@@ -243,5 +380,5 @@ def test_schema_list_explains_an_unusable_search_instead_of_erroring(client, exa
     response = client.get("/schemas/", params={"q": "ordér"})
 
     assert response.status_code == HTTPStatus.OK
-    assert "not something this search can look for" in response.text
+    assert "not something this registry can look for" in response.text
     assert example_schema["name"] not in response.text

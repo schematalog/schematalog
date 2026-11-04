@@ -27,6 +27,96 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-09-06: Labels are per-version tags - folded, capped, filtered exactly
+
+**Decided.** A schema version may carry **labels**: a set of short tags, mutable metadata
+in the same family as `deprecated` and `successor` - carried by `set_metadata`, settable
+at publish, and present on every wire response. They are the second half of the experiment
+the 2026-08-29 ordering set up: search and labels together are what tell us whether
+catalogs are still wanted. This entry records their shape; it does not revisit that
+ordering.
+
+**Rejected shapes: a fixed hierarchy, and key-value annotations.** A curated category
+tree needs an owner and a management surface, which is an aggregate - the very thing the
+ordering was avoiding - and it repeats the catalog mistake of building structure before
+the need is proven. Annotations (Kubernetes-style pairs) answer questions nobody has
+asked and double every one they do: key drift joins value drift, and filtering has to
+choose between key, value and pair. The one future need that sounds like annotations -
+import provenance, an original date and a source registry - is its own field with its own
+decision when import lands, not something labels should pre-pay for. Key-value can arrive
+later beside tags without disturbing them.
+
+**Per-version, like the rest of its family.** `set_metadata` is addressed by
+`(name, version)`, and labels stay inside that: each version owns its set, the publish
+command carries initial labels exactly as it carries the description, and grouping reads
+the *latest* version's set - the same scope search already uses. The intuitively appealing
+alternative, labels on the *name*, has no home: a name-level store is a sixth concept in
+a contract deliberately held at five. Repository-level inheritance on publish - copying
+the previous version's labels onto the new one - was also rejected: silent copying at the
+storage layer is magic, and the honest mechanism already exists in the description's
+pattern, where the publish form pre-fills the previous value and the author decides.
+
+**Accepted cost:** publishing a new version without labels drops the schema from its
+groups until they are re-applied. The form pre-fill and the publish payload are the
+mitigation, and the description has lived with the identical footgun unremarked.
+
+**Drift is steered against, not prevented.** Free-form labels drift - `payments`,
+`payment`, `Payments`. What is mechanical is settled: labels **fold to lowercase on
+write**, following the `SearchQuery` rule that equality should agree with behaviour, and
+they use **the name alphabet** (letters, digits, `-`, `_`, `.`) so they stay URL-safe and
+validate on the same pattern as names, versions and queries - spaces would invite
+multi-word drift (`customer data` versus `customer-data`) on top of the rest. What is not
+mechanical is left alone: singular versus plural is a language question, and stemming was
+rejected for search for the same reason it fails here - no two implementations agree. The
+steering is discoverability: a publisher can see what already exists (below), and the
+publish form lists the labels in use beside the field. It does not suggest as they type:
+a browser's suggestion list treats a single field as one value, so on a space-separated
+field it stops matching after the first label, and picking one erases the rest.
+
+**Caps, both generous.** A label shares the name's length cap (`MAX_IDENTIFIER_LENGTH`) -
+it is a stored token like a name, not a typed query, so no third constant. A version
+carries at most 32 labels, its own constant: a resource guard for a world-writable demo,
+set where being wrong costs nothing.
+
+**Wire and update semantics.** Responses carry `labels` always - a sorted list, possibly
+empty, never `null` (a value type with a natural empty; the same rule as `description`).
+The PATCH update **replaces the whole set**: omitted leaves it unchanged, `[]` clears it,
+and no sentinel is needed because empty is a real value - the tri-state machinery exists
+only for `successor`, whose `None` means something. There are no item-level add/remove
+operations; replace is idempotent, and add/remove are client-side conveniences over it.
+The set is **deduplicated and sorted on write**, so writing the same labels twice is
+byte-identical - the filesystem backend's reason to exist is sitting inside a git working
+tree, and deterministic bytes are what keep its diffs clean. Labels live **beside the
+document, not inside it**: the stamping precedent (`$id`, `title`, `description`,
+`deprecated`) covers standard keywords an author could have written, there is no standard
+`labels` keyword, and injecting one would widen the gap between the served document and
+the published one for no consumer's gain.
+
+**Filtering ships with labels, as its own parameter.** `GET /api/schemas?label=payments`
+- repeatable, ANDed (adding a label narrows, the same rule as search terms), matching
+**exactly** on the folded label: a label is a token, not text, so there is no substring
+and nothing to rank. Never folded into `q` - the no-syntax rule, and the same separation
+document search keeps. The implementation mirrors search: the base repository filters the
+latest versions it already fetched, so the guarantee costs nothing where it is not pushed
+down; the SQL backend filters the rows its one query already returned, and a store that
+can push the predicate down may, because the conformance suite pins the guarantee -
+*exact, folded, AND, name order unchanged* - so a backend may only be faster, never
+different. Without pagination this stands exactly where `q` stands today.
+
+**A labels-in-use listing ships too.** `GET /api/labels` answers the distinct labels over
+latest versions, ascending - a derived repository method with an in-Python default, so
+the five-method contract is untouched. It is the smallest piece and the one that makes
+the drift story more than a shrug: a publisher cannot reuse a spelling they cannot
+discover, and the publish form's list needs a source.
+
+**Storage.** The SQL backends gain one `labels` JSON column, `NOT NULL` with a `[]`
+default; databases are recreated, as every pre-1.0 schema change is. Every other backend
+rides the serialised `Schema` unchanged, and stores written before this change read fine:
+the missing key falls to the domain's empty default, the forward-compatible reading the
+no-migrations entry prescribes for exactly this case.
+
+---
+
 ## 2026-08-31: No migrations before 1.0; a schema change may require a reset
 
 **Decided, as a default rather than a rule.** Schematalog ships **no database migrations**

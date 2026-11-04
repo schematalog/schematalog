@@ -34,6 +34,14 @@ class InvalidSearchQueryError(ApplicationError):
     """
 
 
+class InvalidLabelError(ApplicationError):
+    """A label holds something no label may hold (-> 422).
+
+    Rejected rather than silently dropped or stored, so a caller told `customer data`
+    learns *why* nothing carries that label instead of meeting an empty listing.
+    """
+
+
 class InvalidSuccessorError(ApplicationError):
     """The requested successor reference is not acceptable (-> 422).
 

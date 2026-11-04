@@ -25,6 +25,7 @@ from schematalog.domain.schema import (
     UNSET,
     Schema,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SuccessorReference,
@@ -33,7 +34,7 @@ from schematalog.domain.schema import (
 
 __all__ = ["S3SchemaRepository", "build_repository"]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 """This backend's own version, independent of the registry's and of the contract's."""
 
 
@@ -74,12 +75,15 @@ class S3SchemaRepository(SchemaRepository):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         schema = await self.get(identity)
         if deprecated is not None:
             schema.deprecated = deprecated
         if successor is not UNSET:
             schema.successor = successor
+        if labels is not None:
+            schema.labels = labels
         await asyncio.to_thread(self._put_over, schema)
         return schema
 

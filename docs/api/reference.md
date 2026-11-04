@@ -27,12 +27,13 @@ All paths are relative to your instance's address (for example
 
 | Method | Path | Purpose | Auth |
 | --- | --- | --- | --- |
-| `GET` | `/api/schemas` | Latest version of every schema. Accepts `?q=` to [filter by name](retrieving.md#searching). | none |
+| `GET` | `/api/schemas` | Latest version of every schema. Accepts `?q=` to [search](retrieving.md#searching) and `?label=` to [filter by label](retrieving.md#filtering-by-label). | none |
 | `POST` | `/api/schemas` | [Publish](publishing.md) a new version. | none |
+| `GET` | `/api/labels` | Every [label](publishing.md#labels) carried by a latest version, ascending. | none |
 | `GET` | `/api/schemas/{name}` | `302` to the latest version's canonical URL. | none |
 | `GET` | `/api/schemas/{name}/versions` | All versions of a name, newest first. | none |
 | `GET` | `/api/schemas/{name}/versions/{version}` | The JSON Schema document (canonical URL). | none |
-| `PATCH` | `/api/schemas/{name}/versions/{version}` | Update mutable metadata ([deprecation/successor](lifecycle.md)). | none |
+| `PATCH` | `/api/schemas/{name}/versions/{version}` | Update mutable metadata ([deprecation/successor](lifecycle.md), [labels](publishing.md#labels)). | none |
 
 Non-API endpoints: `GET /version` (build info), `GET /openapi.yaml`, and the HTML
 UI under `/`.

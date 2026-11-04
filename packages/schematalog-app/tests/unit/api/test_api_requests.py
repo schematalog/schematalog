@@ -341,3 +341,140 @@ def test_publishing_rejects_an_identifier_longer_than_the_column(client, example
     """
     response = client.post("/api/schemas", json={**example_schema, field: "a" * 300})
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+# ---- labels ------------------------------------------------------------------------
+
+
+def test_published_schema_defaults_to_no_labels(client, example_schema):
+    """`labels` is always present on the wire - an empty list, never null, never absent."""
+    response = client.post("/api/schemas", json=example_schema)
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()["labels"] == []
+
+
+def test_published_schema_carries_its_labels_canonically(client, example_schema):
+    """Folded, deduplicated and sorted - the wire shows what was stored, not typed."""
+    response = client.post(
+        "/api/schemas",
+        json={**example_schema, "labels": ["Payments", "billing", "payments"]},
+    )
+    assert response.status_code == HTTPStatus.CREATED
+    assert response.json()["labels"] == ["billing", "payments"]
+
+
+def test_publishing_rejects_a_label_outside_the_alphabet(client, example_schema):
+    response = client.post("/api/schemas", json={**example_schema, "labels": ["customer data"]})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_listing_schemas_filters_by_a_label(client, example_schema):
+    """`?label=` narrows the same collection in the same order - no separate resource."""
+    client.post("/api/schemas", json={**example_schema, "name": "alpha", "labels": ["billing"]})
+    client.post("/api/schemas", json={**example_schema, "name": "beta", "labels": ["shipping"]})
+    client.post("/api/schemas", json={**example_schema, "name": "gamma"})
+
+    response = client.get("/api/schemas", params={"label": "billing"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert [s["name"] for s in response.json()["schemas"]] == ["alpha"]
+
+
+def test_listing_schemas_matches_a_label_regardless_of_case(client, example_schema):
+    """The filter folds exactly as writes do, so either spelling finds the label."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["Payments"]})
+
+    response = client.get("/api/schemas", params={"label": "PAYMENTS"})
+
+    assert [s["name"] for s in response.json()["schemas"]] == [example_schema["name"]]
+
+
+def test_listing_schemas_requires_every_label(client, example_schema):
+    """Repeated `label` parameters are ANDed: adding one narrows rather than widens."""
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "alpha", "labels": ["billing", "customer"]},
+    )
+    client.post("/api/schemas", json={**example_schema, "name": "beta", "labels": ["billing"]})
+
+    response = client.get("/api/schemas", params=[("label", "billing"), ("label", "customer")])
+
+    assert [s["name"] for s in response.json()["schemas"]] == ["alpha"]
+
+
+def test_listing_schemas_combines_a_query_and_labels(client, example_schema):
+    """`q` and `label` narrow together: a schema must satisfy both."""
+    client.post(
+        "/api/schemas", json={**example_schema, "name": "billing.one", "labels": ["payments"]}
+    )
+    client.post(
+        "/api/schemas", json={**example_schema, "name": "billing.two", "labels": ["shipping"]}
+    )
+    client.post(
+        "/api/schemas", json={**example_schema, "name": "other.three", "labels": ["payments"]}
+    )
+
+    response = client.get("/api/schemas", params={"q": "billing", "label": "payments"})
+
+    assert [s["name"] for s in response.json()["schemas"]] == ["billing.one"]
+
+
+def test_listing_schemas_rejects_a_label_outside_the_alphabet(client):
+    """Rejected rather than answered with an empty result, for the same reason `q` is."""
+    response = client.get("/api/schemas", params={"label": "customer data"})
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_labels_endpoint_lists_each_label_in_use_once_ascending(client, example_schema):
+    client.post(
+        "/api/schemas", json={**example_schema, "name": "alpha", "labels": ["Payments"]}
+    )
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "name": "beta", "labels": ["billing", "payments"]},
+    )
+    client.post("/api/schemas", json={**example_schema, "name": "gamma"})
+
+    response = client.get("/api/labels")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["labels"] == ["billing", "payments"]
+
+
+def test_labels_endpoint_is_empty_for_an_empty_registry(client):
+    response = client.get("/api/labels")
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["labels"] == []
+
+
+def test_metadata_update_replaces_the_label_set(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    response = client.patch(url, json={"labels": ["customer", "Payments"]})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["labels"] == ["customer", "payments"]
+    versions = client.get(f"/api/schemas/{example_schema['name']}/versions").json()["schemas"]
+    assert versions[0]["labels"] == ["customer", "payments"]
+
+
+def test_metadata_update_clears_labels_with_an_empty_set(client, example_schema):
+    """An empty array clears; omitting the field would have left the set unchanged."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    response = client.patch(url, json={"labels": []})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["labels"] == []
+
+
+def test_metadata_update_leaves_labels_alone_when_omitted(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    response = client.patch(url, json={"deprecated": True})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["labels"] == ["billing"]

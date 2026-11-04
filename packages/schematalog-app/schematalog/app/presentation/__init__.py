@@ -14,6 +14,7 @@ import yaml
 from schematalog.app.application.exceptions import (
     ApplicationError,
     DuplicateSchemaError,
+    InvalidLabelError,
     InvalidSchemaError,
     InvalidSearchQueryError,
     InvalidSuccessorError,
@@ -90,6 +91,7 @@ _HTTP_STATUS: dict[type[ApplicationError], HTTPStatus] = {
     InvalidSchemaError: HTTPStatus.UNPROCESSABLE_ENTITY,
     InvalidSearchQueryError: HTTPStatus.UNPROCESSABLE_ENTITY,
     InvalidSuccessorError: HTTPStatus.UNPROCESSABLE_ENTITY,
+    InvalidLabelError: HTTPStatus.UNPROCESSABLE_ENTITY,
 }
 
 
