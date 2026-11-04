@@ -10,9 +10,14 @@ from fastapi.responses import RedirectResponse
 from markupsafe import Markup, escape
 from pydantic import BaseModel, ValidationError
 
-from schematalog.app.application.exceptions import DuplicateSchemaError, InvalidSchemaError
+from schematalog.app.application.exceptions import (
+    DuplicateSchemaError,
+    InvalidSchemaError,
+    InvalidSearchQueryError,
+)
 from schematalog.app.application.schema import (
     GetSchemaCommand,
+    ListLatestCommand,
     ListPredecessorsCommand,
     ListVersionsCommand,
     PublishCommand,
@@ -21,6 +26,7 @@ from schematalog.app.application.schema import (
 )
 from schematalog.app.presentation.helpers.property_type import render_property_type
 from schematalog.app.presentation.helpers.urls import canonical_url_for, stamp_canonical_id
+from schematalog.app.wiring.config import settings
 from schematalog.app.wiring.factories import get_service
 
 from .templates import templates
@@ -34,7 +40,7 @@ from .templates import templates
 router = APIRouter(include_in_schema=False)
 
 
-def _template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any], str]:
+def _build_template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any], str]:
     """Project a `SchemaView` onto the flat dict the templates read, plus its `$id` URL.
 
     Mirrors the old wire form (None fields omitted, so unguarded `{{ schema.x }}`
@@ -55,7 +61,7 @@ def _template_schema(view: SchemaView, request: Request) -> tuple[dict[str, Any]
         "deprecated": view.deprecated,
         "successor": str(view.successor) if view.successor is not None else None,
     }
-    if view.description is not None:
+    if view.description:
         data["description"] = view.description
     data["published_on"] = view.published_on
     return data, url
@@ -68,12 +74,40 @@ async def homepage(request: Request):
 
 
 @router.get("/schemas/", name="schemas_list")
-async def schemas_list(request: Request, service: SchemaService = Depends(get_service)):
-    """Render list of all schemas."""
-    schemas = [
-        _template_schema(view, request)[0] async for view in service.list_latest_schemas()
-    ]
-    return templates.TemplateResponse(request, "schemas.html.jinja", {"schemas": schemas})
+async def schemas_list(
+    request: Request, q: str = "", service: SchemaService = Depends(get_service)
+):
+    """Render the schema list, narrowed by `q` when one is given.
+
+    The query round-trips into the response so the box still shows what was searched
+    for, and so the empty state can say which search found nothing rather than claiming
+    the registry is empty.
+    """
+    # The API answers an unusable query with 422; a browser gets a page instead, because
+    # an error document is the wrong response to someone mistyping in a search box.
+    # The length cap is the API's, applied here too so the two surfaces accept the same
+    # queries; the API answers an unusable one with 422, a browser gets a page instead.
+    try:
+        if len(q) > settings.MAX_QUERY_LENGTH:
+            raise InvalidSearchQueryError  # noqa: TRY301
+        schemas = [
+            _build_template_schema(view, request)[0]
+            async for view in service.list_latest_schemas(ListLatestCommand(query=q))
+        ]
+    except InvalidSearchQueryError:
+        schemas, valid = [], False
+    else:
+        valid = True
+    return templates.TemplateResponse(
+        request,
+        "schemas.html.jinja",
+        {
+            "schemas": schemas,
+            "query": q,
+            "query_is_valid": valid,
+            "max_query_length": settings.MAX_QUERY_LENGTH,
+        },
+    )
 
 
 @router.get("/schemas/{schema_name}", name="schemas_detail")
@@ -85,7 +119,7 @@ async def schemas_detail(
 ):
     """Retrieve a version of a schema (the latest if none is selected)."""
     view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version or None))
-    serialized, url = _template_schema(view, request)
+    serialized, url = _build_template_schema(view, request)
     all_versions = [
         v.version
         async for v in service.list_schema_versions(ListVersionsCommand(name=schema_name))
@@ -144,7 +178,7 @@ _STARTER_DOCUMENT = json.dumps(
 )
 
 
-def _publish_response(
+def _render_publish_response(
     request: Request,
     fields: dict[str, str],
     error: str | None = None,
@@ -210,7 +244,7 @@ async def schemas_publish(
     republishing the same one is always a conflict. Otherwise it opens blank.
     """
     if not name:
-        return _publish_response(
+        return _render_publish_response(
             request,
             {
                 "name": "",
@@ -220,12 +254,12 @@ async def schemas_publish(
             },
         )
     view = await service.get_schema(GetSchemaCommand(name=name, version=version or None))
-    return _publish_response(
+    return _render_publish_response(
         request,
         {
             "name": view.name,
             "version": _suggest_next_version(view.version),
-            "description": view.description or "",
+            "description": view.description,
             # The stored document, not the one the detail page shows: that one carries a
             # stamped canonical `$id`, which publishing strips anyway - showing it in the
             # editor would imply it is part of the document the author maintains.
@@ -257,7 +291,7 @@ def _build_publish_command(fields: dict[str, str]) -> tuple[PublishCommand | Non
                 name=fields["name"],
                 version=fields["version"],
                 json_schema=document,
-                description=fields["description"] or None,
+                description=fields["description"],
             ),
             "",
         )
@@ -287,14 +321,14 @@ async def schemas_publish_submit(
     }
     command, error = _build_publish_command(fields)
     if command is None:
-        return _publish_response(request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY)
+        return _render_publish_response(request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY)
     try:
         view = await service.publish_schema(command)
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
         # field breaking a domain constraint. The exact cap lives in the domain, which
         # presentation cannot import, so the wording spans the two rather than quoting it.
-        return _publish_response(
+        return _render_publish_response(
             request,
             fields,
             "The document does not conform to any supported JSON Schema metaschema, "
@@ -302,7 +336,7 @@ async def schemas_publish_submit(
             HTTPStatus.UNPROCESSABLE_ENTITY,
         )
     except DuplicateSchemaError:
-        return _publish_response(
+        return _render_publish_response(
             request,
             fields,
             f"Version '{fields['version']}' of '{fields['name']}' already exists.",

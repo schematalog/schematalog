@@ -1,7 +1,7 @@
 # Publishing schemas
 
-Publishing creates a new, immutable schema **version**. It requires an
-the API.
+Publishing creates a new, immutable schema **version**. It needs no credentials:
+everything an instance can do is open to anyone who can reach it.
 
 ```
 POST /api/schemas
@@ -28,6 +28,34 @@ POST /api/schemas
 !!! tip "`schema` vs `json_schema`"
     The wire field is `schema`. (Internally it maps to `json_schema`; both names are
     accepted on input, but prefer `schema`.)
+
+## Naming, and the dot convention
+
+A name may contain letters, digits, `-`, `_` and `.`, and must start with a letter or
+a digit. Every name lives in **one flat namespace per instance**, so there is exactly
+one `customer` in a registry.
+
+The examples here write names like `billing.customer`, and it is worth being precise
+about what that dot does: **nothing**. It is an ordinary character in the name.
+`billing.customer` is a single name, not a `customer` inside a `billing` container.
+There is no registry of prefixes, no endpoint that lists them, and no way to grant or
+deny anything on one.
+
+What the convention buys you is real but modest, and comes entirely from the name being
+a string:
+
+- names sort together, so `GET /api/schemas` groups them visually;
+- `GET /api/schemas?q=billing.` finds them, since [search](retrieving.md#searching)
+  matches a substring of the name or the description.
+
+**It is deliberately a convention rather than a mechanism.** Any grouping the registry
+enforced would have to be part of a schema's address, and the address is the canonical
+`$id` that must resolve forever - so moving a schema between groups would either be
+forbidden or would break a permalink. Leaving grouping to the name costs nothing and
+forces nobody: adopt dots, adopt some other separator, or use flat names.
+
+If you want prefixes to *mean* something rather than merely read well, that is what
+labels will be for; `DECISIONS.md` in the repository records why grouping stayed soft.
 
 ## Versioning
 

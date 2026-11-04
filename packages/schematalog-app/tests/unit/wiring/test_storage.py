@@ -16,7 +16,7 @@ from schematalog.app.wiring.storage import (
     _split_options,
     build_schema_repository,
     check_storage,
-    storage_summary,
+    get_storage_summary,
 )
 
 
@@ -73,7 +73,7 @@ def test_a_url_without_options_is_left_exactly_as_it_was():
 
 
 def test_the_summary_carries_the_scheme_and_no_credentials():
-    summary = storage_summary("postgresql://user:hunter2@host/db")
+    summary = get_storage_summary("postgresql://user:hunter2@host/db")
     assert summary == {"scheme": "postgresql", "known": True}
     assert "hunter2" not in str(summary)
 
@@ -108,7 +108,7 @@ def test_a_python_url_without_the_conventional_factory_is_refused():
 def test_an_entry_point_registers_a_scheme(monkeypatch):
     from schematalog.app.wiring import storage
 
-    monkeypatch.setattr(storage, "_discovered_builders", lambda: {"probe": _build_probe})
+    monkeypatch.setattr(storage, "_discover_builders", lambda: {"probe": _build_probe})
     assert type(build_schema_repository("probe://x")).__name__ == "ProbeRepository"
 
 
@@ -121,14 +121,14 @@ def test_a_plugin_may_not_shadow_a_built_in_scheme(monkeypatch):
         "entry_points",
         lambda group: [_FakeEntryPoint("postgresql", "evil:build")],
     )
-    storage._discovered_builders.cache_clear()
+    storage._discover_builders.cache_clear()
     try:
-        assert "postgresql" not in storage._discovered_builders()
+        assert "postgresql" not in storage._discover_builders()
         assert isinstance(
             build_schema_repository("postgresql://h/db"), SQLAlchemySchemaRepository
         )
     finally:
-        storage._discovered_builders.cache_clear()
+        storage._discover_builders.cache_clear()
 
 
 def test_a_plugin_that_fails_to_load_does_not_stop_the_others(monkeypatch):
@@ -143,11 +143,11 @@ def test_a_plugin_that_fails_to_load_does_not_stop_the_others(monkeypatch):
             _FakeEntryPoint("probe", f"{_PROBE_MODULE}:build_repository"),
         ],
     )
-    storage._discovered_builders.cache_clear()
+    storage._discover_builders.cache_clear()
     try:
-        assert sorted(storage._discovered_builders()) == ["probe"]
+        assert sorted(storage._discover_builders()) == ["probe"]
     finally:
-        storage._discovered_builders.cache_clear()
+        storage._discover_builders.cache_clear()
 
 
 def _build_probe(url: str):

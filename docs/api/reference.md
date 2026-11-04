@@ -27,7 +27,7 @@ All paths are relative to your instance's address (for example
 
 | Method | Path | Purpose | Auth |
 | --- | --- | --- | --- |
-| `GET` | `/api/schemas` | Latest version of every schema. | none |
+| `GET` | `/api/schemas` | Latest version of every schema. Accepts `?q=` to [filter by name](retrieving.md#searching). | none |
 | `POST` | `/api/schemas` | [Publish](publishing.md) a new version. | none |
 | `GET` | `/api/schemas/{name}` | `302` to the latest version's canonical URL. | none |
 | `GET` | `/api/schemas/{name}/versions` | All versions of a name, newest first. | none |

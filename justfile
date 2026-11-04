@@ -23,7 +23,7 @@ test-py:
         (cd "$package" && COVERAGE_FILE={{justfile_directory()}}/.coverage \
             uv run pytest tests/unit --spec \
             --cov --cov-append --cov-config={{justfile_directory()}}/pyproject.toml \
-            --cov-fail-under=0 --no-cov-on-fail); \
+            --cov-fail-under=0 --no-cov-on-fail) || exit 1; \
     done
     uv run coverage report
 
@@ -36,7 +36,7 @@ test-integration: up
     # Only the packages that have an integration lane; most have nothing to integrate with.
     for package in packages/*/; do \
         if [ -d "$package/tests/integration" ]; then \
-            (cd "$package" && uv run pytest tests/integration --spec); \
+            (cd "$package" && uv run pytest tests/integration --spec) || exit 1; \
         fi; \
     done
 
@@ -52,7 +52,9 @@ lint-py:
     # per package rather than at the workspace root, which declares only the packages.
     # From inside each package, so its manifest is found and its `tests/` is excluded
     # by deptry's own defaults.
-    for package in packages/*/; do (cd "$package" && uv run deptry .); done
+    # `|| exit 1` because a loop's status is its last iteration's: without it a
+    # failure in any package but the last is silently discarded.
+    for package in packages/*/; do (cd "$package" && uv run deptry .) || exit 1; done
     uv run ruff format --check .
     uv run ruff check .
 

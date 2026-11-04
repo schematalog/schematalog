@@ -22,7 +22,7 @@ def json_filter(value: Any):
             value = json.loads(value)
         except json.JSONDecodeError:
             pass
-    return fmt.as_json(value)
+    return fmt.to_json(value)
 
 
 def yaml_filter(value: Any):
@@ -31,7 +31,7 @@ def yaml_filter(value: Any):
             value = json.loads(value)
         except json.JSONDecodeError:
             pass
-    return fmt.as_yaml(value)
+    return fmt.to_yaml(value)
 
 
 def python_filter(value: Any):
@@ -40,7 +40,7 @@ def python_filter(value: Any):
             value = json.loads(value)
         except json.JSONDecodeError:
             pass
-    return fmt.as_pydantic(value)
+    return fmt.to_pydantic(value)
 
 
 @pass_context
@@ -52,7 +52,7 @@ def avro_filter(ctx, value: Any):
             pass
     namespace = ctx.get("schema").get("name")
     try:
-        return fmt.as_avro(value, namespace)
+        return fmt.to_avro(value, namespace)
     except AvroConversionError as exc:
         return f"# This schema cannot be represented as Avro: {exc}"
 

@@ -48,23 +48,23 @@ def _load_manifest() -> dict[str, Any] | None:
     return _manifest_cache["data"]
 
 
-def _link(path: str) -> str:
+def _render_link(path: str) -> str:
     return f'<link rel="stylesheet" href="{_STATIC_BASE}/{path}">'
 
 
-def _script(path: str) -> str:
+def _render_script(path: str) -> str:
     return f'<script type="module" src="{_STATIC_BASE}/{path}"></script>'
 
 
-def _tags_for(chunk: dict[str, Any]) -> list[str]:
+def _build_tags_for(chunk: dict[str, Any]) -> list[str]:
     """The tags for one manifest chunk: its own file plus any CSS it imports.
 
     A CSS entry's `file` is the stylesheet itself; a JS entry's `file` is the script,
     and its bundled styles arrive via the `css` array.
     """
-    tags = [_link(css) for css in chunk.get("css", [])]
+    tags = [_render_link(css) for css in chunk.get("css", [])]
     file = chunk["file"]
-    tags.append(_link(file) if file.endswith(".css") else _script(file))
+    tags.append(_render_link(file) if file.endswith(".css") else _render_script(file))
     return tags
 
 
@@ -87,7 +87,7 @@ def _render(entry: str) -> str:
     if manifest is None or entry not in manifest:
         log.warning("vite_asset_unresolved", entry=entry, built=manifest is not None)
         return f"<!-- vite asset not built: {entry} (run `just build-fe`) -->"
-    return "\n".join(_tags_for(manifest[entry]))
+    return "\n".join(_build_tags_for(manifest[entry]))
 
 
 def vite_asset(entry: str) -> Markup:

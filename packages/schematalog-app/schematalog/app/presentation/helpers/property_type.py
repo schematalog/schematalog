@@ -60,7 +60,7 @@ def render_property_type(schema_property: dict) -> Markup:
     Returns:
         `Markup` - the only markup is the `<code>` wrapper this adds; **every**
         substring taken from the schema is escaped here. The escaping is deliberately
-        self-contained rather than leaning on `preprocess_schema` having constrained
+        self-contained rather than leaning on `normalise_for_publication` having constrained
         `type` to the metaschema's enum: this is the one place the templates render
         unescaped, so it must not depend on validation happening elsewhere.
     """

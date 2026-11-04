@@ -112,7 +112,7 @@ def _build_filesystem(url: str) -> SchemaRepository:
 
 def _build_sqlalchemy(url: str) -> SchemaRepository:
     remainder, options = _split_options(url, SQLAlchemyOptions)
-    return SQLAlchemySchemaRepository(_build_engine(_async_driver(remainder), options))
+    return SQLAlchemySchemaRepository(_build_engine(_apply_async_driver(remainder), options))
 
 
 def _build_engine(url: str, options: SQLAlchemyOptions) -> AsyncEngine:
@@ -125,7 +125,7 @@ def _build_engine(url: str, options: SQLAlchemyOptions) -> AsyncEngine:
     )
 
 
-def _async_driver(url: str) -> str:
+def _apply_async_driver(url: str) -> str:
     """Point a bare scheme at the async driver this application uses.
 
     Nobody configuring a registry should have to know that PostgreSQL means asyncpg here
@@ -171,7 +171,7 @@ PLUGIN_FACTORY = "build_repository"
 
 
 @cache
-def _discovered_builders() -> dict[str, Builder]:
+def _discover_builders() -> dict[str, Builder]:
     """Schemes registered by installed packages, cached for the process.
 
     A plugin may not shadow a built-in scheme. Allowing it would mean an installed
@@ -201,7 +201,7 @@ def _discovered_builders() -> dict[str, Builder]:
     return discovered
 
 
-def _imported_builder(url: str) -> Builder:
+def _import_builder(url: str) -> Builder:
     """Resolve `python://<dotted.module.path>` to that module's `build_repository`.
 
     The escape hatch for a backend nobody wants to package. The module path is the
@@ -233,9 +233,9 @@ def resolve_builder(scheme: str) -> Builder:
     Raises:
         UnknownStorageSchemeError: If nothing answers to the scheme.
     """
-    builder = BUILT_IN_BUILDERS.get(scheme) or _discovered_builders().get(scheme)
+    builder = BUILT_IN_BUILDERS.get(scheme) or _discover_builders().get(scheme)
     if builder is None:
-        known = sorted(BUILT_IN_BUILDERS | _discovered_builders())
+        known = sorted(BUILT_IN_BUILDERS | _discover_builders())
         raise UnknownStorageSchemeError(scheme, known)
     return builder
 
@@ -255,15 +255,15 @@ def build_schema_repository(url: str) -> SchemaRepository:
         InvalidStorageUrlError: If the backend's own options do not validate.
     """
     scheme = urlsplit(url).scheme
-    builder = _imported_builder(url) if scheme == PLUGIN_SCHEME else resolve_builder(scheme)
+    builder = _import_builder(url) if scheme == PLUGIN_SCHEME else resolve_builder(scheme)
     return builder(url)
 
 
-def storage_summary(url: str) -> dict[str, Any]:
+def get_storage_summary(url: str) -> dict[str, Any]:
     """The URL's scheme and whether it resolves, for logging without leaking credentials."""
     scheme = urlsplit(url).scheme
     try:
-        _ = _imported_builder(url) if scheme == PLUGIN_SCHEME else resolve_builder(scheme)
+        _ = _import_builder(url) if scheme == PLUGIN_SCHEME else resolve_builder(scheme)
     except UnknownStorageSchemeError:
         return {"scheme": scheme, "known": False}
     return {"scheme": scheme, "known": True}

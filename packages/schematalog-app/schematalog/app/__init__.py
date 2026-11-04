@@ -11,4 +11,4 @@ PEP 420 namespace shared by several distributions (`schematalog-core`, this pack
 namespace and shadow the others.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

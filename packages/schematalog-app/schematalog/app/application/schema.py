@@ -14,13 +14,17 @@ from pydantic import BaseModel, ValidationError
 from schematalog.app.application.exceptions import (
     DuplicateSchemaError,
     InvalidSchemaError,
+    InvalidSearchQueryError,
     InvalidSuccessorError,
     SchemaNotFoundError,
 )
 from schematalog.common.logging import get_logger
 from schematalog.common.models import FrozenModel
-from schematalog.common.validation import IncompatibleSchemaError, preprocess_schema
+from schematalog.common.validation import IncompatibleSchemaError, normalise_for_publication
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
+
+# Re-exported for presentation, which must not import from `domain`.
+from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
 from schematalog.domain.schema import (
     UNSET,
     JsonSchemaDocument,
@@ -30,6 +34,7 @@ from schematalog.domain.schema import (
     SchemaName,
     SchemaRepository,
     SchemaVersion,
+    SearchQuery,
     SuccessorReference,
 )
 
@@ -47,7 +52,7 @@ class PublishCommand(BaseModel):
     name: SchemaName
     version: SchemaVersion
     json_schema: dict[str, Any]
-    description: str | None = None
+    description: str = ""
 
 
 class GetSchemaCommand(BaseModel):
@@ -62,6 +67,19 @@ class ListVersionsCommand(BaseModel):
     """Input for `SchemaService.list_versions`."""
 
     name: SchemaName
+
+
+class ListLatestCommand(BaseModel):
+    """Input for `SchemaService.list_latest_schemas`."""
+
+    query: str | None = None
+    """Narrows the listing to schemas every word of this is found in, ignoring case.
+    `None` or blank selects everything, so an empty search box behaves as no search
+    rather than as a search for nothing.
+
+    Raw text rather than a `SearchQuery`: this is the bridge from external input, and
+    turning it into the validated value object is the service's job, so presentation
+    never has to catch a domain error."""
 
 
 class ListPredecessorsCommand(BaseModel):
@@ -105,7 +123,7 @@ class SchemaView(FrozenModel):
 
     name: SchemaName
     version: SchemaVersion
-    description: str | None
+    description: str
     document: dict[str, Any]
     publication_id: uuid.UUID
     published_on: datetime
@@ -117,7 +135,7 @@ class SchemaView(FrozenModel):
         return cls(
             name=schema.name,
             version=schema.version,
-            description=str(schema.description) if schema.description else None,
+            description=str(schema.description),
             document=schema.json_schema.document,
             publication_id=schema.publication_id,
             published_on=schema.published_on,
@@ -148,15 +166,13 @@ class SchemaService:
             DuplicateSchemaError: If this name/version already exists.
         """
         try:
-            document = preprocess_schema(command.json_schema)
+            document = normalise_for_publication(command.json_schema)
         except IncompatibleSchemaError as exc:
             raise InvalidSchemaError from exc
         try:
             schema = Schema(
                 identity=SchemaIdentity(name=command.name, version=command.version),
-                description=(
-                    SchemaDescription(text=command.description) if command.description else None
-                ),
+                description=SchemaDescription(text=command.description),
                 json_schema=JsonSchemaDocument(document=document),
                 # Ownership of an existing name is checked before the entity is built.
             )
@@ -250,13 +266,27 @@ class SchemaService:
                 f"Successor target does not exist: `{target.name} v{target.version}`."
             ) from exc
 
-    async def list_latest_schemas(self) -> AsyncIterable[SchemaView]:
-        """The latest version of every schema in this scope.
+    async def list_latest_schemas(
+        self, command: ListLatestCommand | None = None
+    ) -> AsyncIterable[SchemaView]:
+        """The latest version of every schema, optionally narrowed by a search.
+
+        Args:
+            command: the listing's parameters; omitted means an unfiltered listing.
 
         Yields:
-            A view of each latest version, in ascending name order.
+            A view of each latest version, in ascending name order. Filtered rather than
+            ranked, so the order is the same with a query as without one.
+
+        Raises:
+            InvalidSearchQueryError: If the query holds something no schema could match.
         """
-        async for schema in self._repo.list_latest():
+        command = command or ListLatestCommand()
+        try:
+            query = SearchQuery.parse(command.query)
+        except ValidationError as exc:
+            raise InvalidSearchQueryError(str(exc)) from exc
+        async for schema in self._repo.list_latest(query=query):
             yield SchemaView.from_schema(schema)
 
     async def list_schema_versions(

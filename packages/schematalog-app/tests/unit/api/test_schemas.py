@@ -21,7 +21,7 @@ _PUBLICATION_ID = uuid.UUID("01a02000-0000-7000-8000-000000000001")
 
 
 def _view(
-    description: str | None = "A test schema",
+    description: str = "A test schema",
     deprecated: bool = False,
     successor: str | None = None,
 ) -> SchemaView:
@@ -70,10 +70,10 @@ def test_schema_response_from_view_flattens_value_objects():
     assert response.publication_id == _PUBLICATION_ID
 
 
-def test_schema_response_from_view_handles_missing_description():
-    view = _view(description=None)
+def test_schema_response_represents_an_empty_description_as_empty_text():
+    view = _view(description="")
     response = SchemaResponse.from_view(view, view.document, "https://x/y")
-    assert response.description is None
+    assert response.description == ""
 
 
 def test_schema_response_serialises_to_flat_wire():

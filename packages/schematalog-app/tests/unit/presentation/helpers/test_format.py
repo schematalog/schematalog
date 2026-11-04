@@ -7,13 +7,13 @@ from schematalog.domain.schema import Schema
 
 
 def test_schema_is_formatted_as_JSON(example_schema_dict):
-    formatted = fmt.as_json(example_schema_dict)
+    formatted = fmt.to_json(example_schema_dict)
 
     assert json.loads(formatted) == example_schema_dict
 
 
 def test_schema_is_formatted_as_YAML(example_schema_dict):
-    formatted = fmt.as_yaml(example_schema_dict)
+    formatted = fmt.to_yaml(example_schema_dict)
 
     assert yaml.safe_load(formatted) == example_schema_dict
 
@@ -22,12 +22,12 @@ def test_model_instances_are_serialized(example_schema):
     model = Schema.model_validate(example_schema)
     expected = model.model_dump(mode="json", by_alias=True)
 
-    assert json.loads(fmt.as_json(model)) == expected
-    assert yaml.safe_load(fmt.as_yaml(model)) == expected
+    assert json.loads(fmt.to_json(model)) == expected
+    assert yaml.safe_load(fmt.to_yaml(model)) == expected
 
 
 def test_schema_is_formatted_as_AVRO(example_schema_dict):
-    avro_schema = json.loads(fmt.as_avro(example_schema_dict))
+    avro_schema = json.loads(fmt.to_avro(example_schema_dict))
 
     assert avro_schema["type"] == "record"
     assert avro_schema["name"] == example_schema_dict["title"]
@@ -36,7 +36,7 @@ def test_schema_is_formatted_as_AVRO(example_schema_dict):
 
 
 def test_schema_is_formatted_as_Pydantic(example_schema_dict):
-    formatted = fmt.as_pydantic(example_schema_dict)
+    formatted = fmt.to_pydantic(example_schema_dict)
 
     # the output compiles as Python code
     assert compile(formatted, "<string>", "exec", dont_inherit=True)
@@ -63,7 +63,7 @@ def test_pydantic_drops_canonical_id_and_resolves_refs_locally():
         "properties": {"country": {"$ref": "#/$defs/country_code"}},
         "$schema": "https://json-schema.org/draft/2020-12/schema",
     }
-    formatted = fmt.as_pydantic(document)
+    formatted = fmt.to_pydantic(document)
 
     assert compile(formatted, "<string>", "exec", dont_inherit=True)
     assert "CountryCode" in formatted  # the internal $defs ref resolved locally

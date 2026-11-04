@@ -27,6 +27,243 @@ supersedes the old one, so the reasoning stays legible either way.
 
 ---
 
+## 2026-08-31: No migrations before 1.0; a schema change may require a reset
+
+**Decided, as a default rather than a rule.** Schematalog ships **no database migrations**
+before 1.0: a release may change the storage schema outright, and the supported way to
+move an existing instance onto a new version is to recreate its store. 1.0 is the point
+at which that stops being defensible, not a commitment to wait for it - a strong enough
+reason overturns this at any time, and real users appearing is the obvious one. What
+follows is the reasoning to argue against, not a rule to route around.
+
+**Why this is a decision and not an omission.** For self-hosted software the vendor
+normally ships migrations, and for good reasons: the user did not make the change and
+cannot reasonably infer it, the work would otherwise be repeated by every user for every
+release, and a migration is often a data backfill rather than DDL - ours would be
+`UPDATE schema SET description = '' WHERE description IS NULL`, which no column
+definition implies. All of that is true and none of it applies yet, because 0.x promises
+nothing. Carrying a migration chain through a phase that is still reshaping the schema
+means maintaining history for states nobody is running.
+
+**What it costs, concretely.** `create_all` creates tables but never alters them, so an
+instance upgraded rather than recreated keeps its old columns - a nullable `description`
+where the current code declares `NOT NULL`, and no `C` collation on it. The code does
+*not* compensate: a `None` read out of a legacy row raises rather than being coerced to
+empty text. That is deliberate. Tolerating old shapes is how a codebase acquires an
+unversioned, untested migration path that nobody chose and nobody can remove.
+
+**The one instance this affects is ours**, the demo at schematalog.com, which is
+therefore reset rather than upgraded. That makes a repeatable reset a real requirement
+rather than a convenience - see `ROADMAP.md`. It is also wanted for its own sake: once
+anyone can publish to the demo, it needs restoring to known data periodically.
+
+**When migrations do return, two things are already settled.** They belong to the **SQL
+backend alone** and not to the storage contract: only that backend has DDL, and the
+repository protocol's five methods must not grow a sixth that most backends cannot
+meaningfully implement. Memory, filesystem and S3 face *format* versioning instead, whose
+answer is forward-compatible reading in the domain - the shape `Schema` already uses to
+accept a flat identity or a missing `deprecated`. And a migration chain must not become a
+second definition of the schema alongside `create_all`: either the chain is the schema, or
+CI asserts the two converge, because that drift is silent and leaves fresh and upgraded
+instances structurally different with only one of them tested.
+
+## 2026-08-31: One search box, several terms, no syntax
+
+**Decided.** Search matches **name and description** through a single `q` parameter.
+Every whitespace-separated word must be found as a case-insensitive substring of one or
+the other - not necessarily the same one. Terms are combined with AND. There is no
+syntax of any kind: no quoting, no field prefixes, no boolean operators, no negation,
+no wildcards.
+
+**The hard rule that keeps it from growing a query language:** *no character inside a
+parameter value ever means anything.* A value is a literal substring. Every future
+capability arrives as a new named parameter, never as syntax inside an existing one.
+
+That rule exists because a query DSL is never designed; it is arrived at as a *repair*.
+One field matches too much, results get useless, and the fix that suggests itself is
+letting the caller disambiguate inside the string - `name:order`, quoting, `-deprecated`.
+The moment a character has meaning, there is a grammar, a precedence table, an escaping
+rule and an error vocabulary to own forever. Preventing the overloaded field prevents the
+language. The character allowlist already enforces most of this by refusing `:`, quotes,
+parentheses and every other operator character an author might reach for.
+
+**Why AND rather than OR.** Adding a word must narrow. OR widens, and widening is only
+survivable when ranking floats the better matches to the top - which was given up
+deliberately (see the entry below). Unranked, an OR search returns a longer list in
+alphabetical order with no way to refine it, which is worse than no search.
+
+**Why split at all, rather than matching the query verbatim.** A verbatim substring makes
+the two searched fields behave differently without saying so: a name can never contain a
+space, so the first two-word query silently drops names out of consideration entirely
+while single-word queries search both. Splitting keeps the fields interchangeable, which
+is the entire point of offering one box.
+
+**What that costs: adjacency.** There is no way to require that two words appear next to
+each other, because the conventional way to ask - quoting - is syntax inside a value.
+Accepted knowingly; it will be the first thing anyone asks for.
+
+**Rejected: separate `name=` and `description=` parameters instead of one box.** They
+remain available later, and are the right shape for a *third* searchable surface: matching
+inside the schema document is a different question ("which schemas have a property like
+this?") whose results would swamp the other two under a filter with no ranking - a search
+for `email` would return nearly every schema. When document search lands it should be its
+own parameter rather than folded into `q`.
+
+**Non-ASCII stays refused, which is a case-folding decision rather than a scope one.**
+Searching a description for an accented word is perfectly meaningful; the problem is that
+no two stores fold case alike. SQLite's `lower()` handles only ASCII, PostgreSQL's follows
+the collation, and Python's `casefold` maps a sharp s to `ss` where neither database does.
+The alphabet alone does not settle it, because it bounds the needle and not the haystack.
+A description is free text, so a store that folds a non-ASCII character *to* an ASCII one
+answers an ASCII query differently from one that does not - PostgreSQL under its own
+locale lowercases `KELVIN SIGN` to `k`, which SQLite and Python do not. So every side
+folds by ASCII rules: in-Python matching uses an ASCII fold rather than `casefold`,
+SQLite's `lower()` is already ASCII-only, and the description column is `C`-collated on
+PostgreSQL, which makes its `lower()` ASCII-only too. With that in place the alphabet
+keeps the guarantee true. Widening it means giving backends a folded form to match
+against - a stored, application-written column - rather than folding as they query;
+worth doing when someone actually needs it, not before.
+
+**A query is a value object, not an entity.** `SearchQuery` validates and normalises once,
+and repositories receive one that is valid by construction rather than a raw string they
+must each re-check. Two searches for the same text are the same question and must return
+the same answer, so they are interchangeable and nothing refers to one afterwards - value
+semantics are what the guarantee is made of, and identity would raise "which one?" for
+something that must not have an answer.
+
+**Rejected: making it an entity now because saved searches might come later.** A saved
+search would not be a promoted `SearchQuery`; it would be a new aggregate *containing*
+one, alongside a name, a description and an owner - the same relationship `Schema` has
+with `SchemaDescription`. So the value object is a prerequisite either way and nothing is
+saved by building the wrapper early. It is also the deferred catalog concept in
+predicate-shaped clothing, and arrives through that door if it ever earns one. The
+reporting half of the motivation - what people search for, what returns nothing - is
+telemetry, answered by structured logs without a domain object at all.
+
+**A query is bounded at 128 characters**, its own constant rather than a share of
+`MAX_IDENTIFIER_LENGTH`: how long a stored name may be and how much someone may type into
+a box are unrelated questions that should move apart freely. It is a resource guard, not a
+semantic boundary, so it is set at the generous end where being wrong costs nothing rather
+than the tight end where being wrong refuses a legitimate search. No separate cap on the
+*number* of terms: N terms are one scan with N predicates per row, not N scans, and 128
+characters cannot hold enough of them to matter.
+
+**A description is text, never null.** Nothing acted on the difference between "absent"
+and "blank" - both render as nothing and both match nothing - while every layer carried
+`str | None` and every backend coalesced on read. It was also a live trap for search:
+matching against `str(schema.description)` reads `None` as the searchable word "none", so
+a query for `on` would have matched every schema without a description, on exactly the
+backends least suspected of it (SQL escapes it by accident, since `NULL LIKE ...` is
+NULL). `successor` stays nullable, and the boundary is worth stating: a value type with a
+natural empty - text, a list, a map - should not use null, while a reference to another
+entity should, because its absence is a fact about the referrer.
+
+## 2026-08-29: Search comes before grouping; catalogs are deferred
+
+**Decided.** Phase 2 continues with **search**, then **labels**, and **catalogs only if
+they are still wanted afterwards**. This reorders the 2026-08-22 sequence, which put
+catalogs and labels together and both before search. It does not reverse the 2026-08-15
+entry on what a catalog *is*: if one is ever built it stays soft grouping, referencing
+rather than containing.
+
+**Why the cost of a catalog changed.** When the order was set, the storage extension
+point was not finished. It is now, and its shape is a published `SchemaRepository` of
+**five required methods** with a conformance suite third parties subclass - a promise the
+implementer's guide makes in as many words. A catalog is a second aggregate: create,
+get, list, update, delete, plus adding and removing members. That leaves two options and
+both are bad. Either every backend author implements a second protocol, which doubles
+what the guide asks of them and obsoletes `schematalog-s3` and any out-of-tree backend;
+or catalogs exist only on the SQL backends, and the contract fractures into a table of
+which backend supports what. Neither cost was visible in August.
+
+**Labels avoid it entirely.** A label is mutable per-schema metadata, the same family as
+`deprecated` and `successor`, which `set_metadata` already carries. Adding them extends
+one existing method rather than introducing an aggregate, so every backend gets them
+nearly free and the five-method promise survives.
+
+**Why search first, rather than either.** What grouping is *for* is finding things in a
+registry too large to read, and that is a search problem. Dotted names already give
+namespacing by convention - `billing.customer` - which the 2026-08-15 entry deliberately
+left as a convention because it costs nothing. So search delivers most of the value while
+committing to no grouping model at all, and shipping it tells us whether grouping is
+still missing and what shape it should take. Building catalogs first commits public API
+surface before that is known.
+
+**The test for whether catalogs ever earn their place:** when a grouping needs to be
+described, linked to and owned - "the payments team's schema set", as a thing with a URL
+and a paragraph explaining what it means. Labels can be searched, filtered and combined,
+but they cannot carry prose about what the grouping is for, cannot be renamed without
+rewriting every member, and can only be discovered by scanning rather than listed
+authoritatively. If nobody asks for the describable thing, an aggregate and a contract
+expansion are saved.
+
+**Rejected: building catalogs now because the roadmap said so.** The ordering was a
+judgement made with less information; the extension point it would now damage did not
+exist yet.
+
+---
+
+## 2026-08-29: Search is defined by its guarantees, not its mechanism
+
+**Decided.** Search is a **capability with a default implementation**, not a sixth
+required repository method: the base class scans `list_latest()` in Python, and a backend
+overrides it when its store can answer better - the same shape as `get_latest`,
+`list_latest` and `list_predecessors` today. So search works on memory, filesystem, S3
+and every third-party backend from the first release, and gets fast where it can.
+
+**The contract is the guarantee, not the implementation.** The interface can stay
+identical across a substring scan, a PostgreSQL `tsvector` and someday a vector index -
+which is what makes starting with the naive version safe, since replacing it later is an
+internal change. But the same fact is the hazard: identical calls returning different
+answers depending on which backend an operator chose, with nothing announcing the
+divergence. This registry has already been bitten by that exact shape - `COLLATE "C"`
+exists because PostgreSQL and SQLite silently disagreed about ordering through one
+interface.
+
+So the guarantee is written **weak enough that every implementation can meet it exactly,
+and strong enough that a caller can act on it**: case-insensitive substring matching over
+the searchable fields, name-ascending. A better engine is then permitted to be *faster*
+and never *different*, and the conformance suite tests the guarantee - so a backend that
+stems, fuzzy-matches or reorders fails rather than quietly diverging.
+
+**Filter, do not rank.** Relevance ordering is precisely the part no two implementations
+agree on, so promising it welds the API to whichever engine is underneath. It also
+fights cursor pagination, which cannot be made stable over a relevance-ordered set.
+
+**Where it lives on the wire:** query parameters on `/api/schemas`
+(`?q=...&deprecated=false`), not a new `/search` resource. Additive, composable with the
+existing collection, and it commits to no ranking model - a `/search` endpoint implies
+ranked results with highlights across mixed resource types, which is a promise worth not
+making.
+
+**Scope:** the latest version of each name, matching what `/api/schemas` already returns.
+Searching every version returns five near-identical hits for one schema and buries
+everything else.
+
+**What is searchable, in the order it will be built:** the **name** first, which is the
+gap that exists today - one alphabetical list and nothing else. Then the **description**.
+Then **document content, and property names above all**: "which schemas have a field
+called `email`" is the question nothing outside a registry can answer, and it is the
+same instinct the `$ref` dependency graph serves later.
+
+**Pagination is settled with search, not after it.** Search is what makes large result
+sets likely, and `list_latest` currently returns everything. The response envelope is an
+object with a `schemas` key rather than a bare array, so adding a cursor is additive and
+non-breaking - cheap now, awkward once there are clients. Two orderings need two cursors:
+`list_latest` is name-ascending so its cursor is the name, while `list_versions` is
+publication-ordered and `publication_id` already documents itself as the cursor.
+
+**Case-insensitivity is a deliberate divergence from ordering.** Ordering is pinned to
+`COLLATE "C"` so the backends agree byte-for-byte; matching where `Order` misses `order`
+is a bad search. The two rules differ on purpose, and the conformance suite has to say so
+explicitly, or the backends will drift apart again in the same place they did before.
+
+**The growth path, not built yet:** if the good implementations diverge far enough from
+the guarantee to be worth having on their own terms, search stops being a storage concern
+and becomes its own optional seam, pairable with any backend. Storage stays five methods.
+
+---
+
 ## 2026-08-29: What waits for 1.0, and why it is a decision rather than a gap
 
 **Decided.** Three things that a mature project would have, and this one deliberately
