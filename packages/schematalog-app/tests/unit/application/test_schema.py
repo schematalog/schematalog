@@ -132,11 +132,13 @@ def repo_changed_after_each_read(schema_repo):
 
     class ChangedAfterEachRead:
         async def get(self, identity):
+            """Return what was stored at the read, then let the other request change it."""
             read = (await schema_repo.get(identity)).model_copy()
             await schema_repo.set_metadata(identity, deprecated=True)
             return read
 
         def __getattr__(self, name):
+            """Answer the rest of the repository protocol from the real store."""
             return getattr(schema_repo, name)
 
     return ChangedAfterEachRead()

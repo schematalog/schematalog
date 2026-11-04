@@ -542,6 +542,8 @@ def test_version_document_stays_the_bare_document(client, example_schema):
         "/api/schemas/not%20a%20name!/versions/1/metadata",
         "/api/schemas/person-schema/versions/not%20a%20version!",
         "/api/schemas/person-schema/versions/not%20a%20version!/metadata",
+        "/api/schemas/%2E%2E",
+        "/api/schemas/%2E%2E/versions",
         f"/api/schemas/{'x' * 300}",
         f"/api/schemas/person-schema/versions/{'x' * 300}",
     ],
@@ -553,6 +555,20 @@ def test_a_name_or_version_no_schema_could_have_is_404(client, example_schema, p
     response = client.get(path)
 
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.parametrize(
+    ("path", "detail"),
+    [
+        ("/api/schemas/not%20a%20name!", "Unknown schema: `not a name!`."),
+        ("/api/schemas/a/versions/not%20a%20version!", "Unknown schema: `a vnot a version!`."),
+    ],
+)
+def test_a_name_or_version_no_schema_could_have_reads_as_any_unknown_one(client, path, detail):
+    """The body must not carry the validation library's own error text."""
+    response = client.get(path)
+
+    assert response.json() == {"detail": detail}
 
 
 def test_updating_a_version_no_schema_could_have_is_404(client, example_schema):
