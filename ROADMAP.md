@@ -475,6 +475,12 @@ site it was waiting on.
 - **How a catalog's membership is addressed.** Schemas keep their own short path, so
   what needs settling is the shape of the catalog side: listing members, and adding or
   removing one. Worth a moment's thought before it is a public contract.
+- **Whether a metadata update goes through the entity.** `update_schema_metadata` builds a
+  copy with `Schema.with_metadata`, but only reads back the identity and the successor,
+  which it already has, and the backend applies the change itself. Dropping that copy is
+  easy, but leaves `with_metadata` with no caller outside its tests, so it is really a
+  choice about whether the domain should arbitrate these changes or the method should go.
+  There is no rule for it to enforce today. Left as it is on 2026-11-04.
 - ~~**What 2.0 means now.**~~ Answered: it is **1.0**, not 2.0. "2.0" was vocabulary
   from before the restart, when the application was at 1.7 and the next era would have
   been 2.0; after restarting at 0.1.0 it pointed at nothing, since the phase scheme runs

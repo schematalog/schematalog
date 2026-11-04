@@ -27,7 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 # The conformance suite is importable test code; pytest is needed only by those running it.
 # Every case in the suite is `async def`, so the asyncio plugin is not optional on top of
-# that - without it a backend author gets 27 errors where the contract should be.
+# that - without it a backend author gets errors where the contract should be.
 testing = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 
 [tool.deptry]

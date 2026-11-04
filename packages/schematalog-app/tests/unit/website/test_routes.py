@@ -30,6 +30,23 @@ def test_schema_detail_renders(client, published):
     assert published["version"] in response.text
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/schemas/not%20a%20name!",
+        "/schemas/person-schema?version=not%20a%20version!",
+        "/publish?name=not%20a%20name!",
+        "/publish?name=person-schema&version=not%20a%20version!",
+    ],
+)
+def test_a_page_for_a_name_or_version_no_schema_could_have_is_404(client, example_schema, url):
+    client.post("/api/schemas", json=example_schema)
+
+    response = client.get(url)
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 def test_unknown_schema_detail_returns_404(client):
     response = client.get("/schemas/does-not-exist")
     assert response.status_code == HTTPStatus.NOT_FOUND

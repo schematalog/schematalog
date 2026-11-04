@@ -125,6 +125,19 @@ class SchemaRepositoryConformance:
         assert updated.deprecated is True
         assert (await repository.get(schema.identity)).deprecated is True
 
+    async def test_set_metadata_leaves_deprecation_alone_when_not_given(self, repository):
+        """The registry passes `None` for a flag a request does not change."""
+        schema = build_schema(name="alpha", version="1")
+        await repository.add(schema)
+        await repository.set_metadata(schema.identity, deprecated=True)
+
+        updated = await repository.set_metadata(
+            schema.identity, deprecated=None, labels=SchemaLabels(labels=())
+        )
+
+        assert updated.deprecated is True
+        assert (await repository.get(schema.identity)).deprecated is True
+
     async def test_set_metadata_sets_changes_and_clears_a_successor(self, repository):
         schema = await repository.add(build_schema())
         await repository.set_metadata(

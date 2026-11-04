@@ -126,6 +126,41 @@ async def _set_successor(repo, schema, *, successor, target=None):
     return await _service(repo).update_schema_metadata(MetadataUpdateCommand(**command_args))
 
 
+@pytest.fixture
+def repo_changed_after_each_read(schema_repo):
+    """A store where another request deprecates a version just after the service reads it."""
+
+    class ChangedAfterEachRead:
+        async def get(self, identity):
+            """Return what was stored at the read, then let the other request change it."""
+            read = (await schema_repo.get(identity)).model_copy()
+            await schema_repo.set_metadata(identity, deprecated=True)
+            return read
+
+        def __getattr__(self, name):
+            """Answer the rest of the repository protocol from the real store."""
+            return getattr(schema_repo, name)
+
+    return ChangedAfterEachRead()
+
+
+async def test_update_keeps_a_deprecation_made_since_the_version_was_read(
+    repo_changed_after_each_read, example_schema
+):
+    """An update that does not mention `deprecated` must not write back what it read."""
+    await _publish(repo_changed_after_each_read, example_schema)
+
+    updated = await _service(repo_changed_after_each_read).update_schema_metadata(
+        MetadataUpdateCommand(
+            name=example_schema["name"],
+            version=example_schema["version"],
+            labels=["billing"],
+        )
+    )
+
+    assert updated.deprecated is True
+
+
 async def test_update_internal_successor_to_existing_target(schema_repo, example_schema):
     await _publish(schema_repo, {**example_schema, "version": "1"})
     await _publish(schema_repo, {**example_schema, "version": "2"})
