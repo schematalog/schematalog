@@ -64,7 +64,7 @@ are free to use it.
 
 ## Status
 
-**Early.** Version 0.1.0 is the first release after a substantial change of direction:
+**Early.** These first releases follow a substantial change of direction:
 Schematalog was built as a multi-tenant hosted service and has been rebuilt as software
 an organisation installs and runs for itself. Authentication, tenancy and per-schema
 visibility were removed rather than reduced; the API is the product.

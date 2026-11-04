@@ -41,7 +41,7 @@ DEP002 = ["pytest-asyncio"]
 
 [project.urls]
 Homepage = "https://schematalog.com"
-Documentation = "https://schematalog.com"
+Documentation = "https://schematalog.readthedocs.io/"
 Source = "https://github.com/schematalog/schematalog"
 
 [build-system]

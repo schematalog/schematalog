@@ -32,6 +32,7 @@ s3 = "schematalog.s3:build_repository"
 tests = [
     "moto>=5.2.3",
     "pytest>=8.0",
+    "schematalog-app",
     "schematalog-core[testing]",
 ]
 
@@ -46,7 +47,7 @@ DEP002 = ["schematalog-core"]
 
 [project.urls]
 Homepage = "https://schematalog.com"
-Documentation = "https://schematalog.com"
+Documentation = "https://schematalog.readthedocs.io/"
 Source = "https://github.com/schematalog/schematalog"
 
 [build-system]
@@ -60,4 +61,5 @@ path = "schematalog/s3/__init__.py"
 packages = ["schematalog"]
 
 [tool.uv.sources]
+schematalog-app = { workspace = true }
 schematalog-core = { workspace = true }
