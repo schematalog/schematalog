@@ -1,6 +1,6 @@
 [project]
 name = "schematalog"
-version = "0.2.1"
+version = "0.2.2"
 description = "A registry and catalog for JSON Schema specifications."
 readme = "README.md"
 authors = [{ name = "Berislav Lopac", email = "berislav@lopac.net" }]
@@ -22,12 +22,12 @@ dependencies = [
     # can go wrong quietly. This says only what lockstep already promises - that this
     # release of the front door corresponds to at least that release of the registry -
     # so a resolver cannot satisfy it with an application older than the number here.
-    "schematalog-app>=0.2.1",
+    "schematalog-app>=0.2.2",
 ]
 
 [project.urls]
 Homepage = "https://schematalog.com"
-Documentation = "https://schematalog.com"
+Documentation = "https://schematalog.readthedocs.io/"
 Source = "https://github.com/schematalog/schematalog"
 
 [build-system]

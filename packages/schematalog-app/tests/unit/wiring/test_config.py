@@ -29,3 +29,14 @@ def test_environment_and_platform_come_from_the_environment(monkeypatch):
     settings = Settings(_env_file=None)
     assert settings.ENVIRONMENT is Environment.PRODUCTION
     assert settings.PLATFORM is Platform.FLY
+
+
+def test_an_env_file_may_hold_lines_meant_for_something_else(tmp_path, monkeypatch):
+    """A `.env` is usually shared with other tools, and that must not stop the application."""
+    monkeypatch.delenv("SCHEMATALOG_STORAGE_URL", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("OTHER_TOOL=value\nSCHEMATALOG_STORAGE_URL=memory://\n")
+
+    settings = Settings(_env_file=env_file)
+
+    assert settings.STORAGE_URL == "memory://"

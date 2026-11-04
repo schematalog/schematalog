@@ -8,7 +8,7 @@ registry application, so implementing a backend does not oblige you to install a
 framework.
 
 ```shell
-pip install schematalog-core[testing]
+pip install "schematalog-core[testing]"
 ```
 
 ## Writing a storage backend
@@ -30,6 +30,14 @@ class TestMyBackend(SchemaRepositoryConformance):
     @pytest.fixture
     def repository(self):
         return MyRepository(...)
+```
+
+Every case in the suite is `async def`, so turn on `pytest-asyncio`'s automatic mode, or
+none of them will pass:
+
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 ```
 
 Registration is a `schematalog.storage` entry point naming the URL scheme you answer to;

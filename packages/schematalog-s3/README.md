@@ -1,9 +1,10 @@
 # schematalog-s3
 
-An S3 storage backend for [Schematalog](../../README.md), and the worked example of a
-backend living outside the registry.
+An S3 storage backend for [Schematalog](https://github.com/schematalog/schematalog), and
+the worked example of a backend living outside the registry.
 
 ```shell
+pip install schematalog-s3
 SCHEMATALOG_STORAGE_URL="s3://my-bucket/schemas?region=eu-west-2"
 ```
 
