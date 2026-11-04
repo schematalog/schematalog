@@ -30,8 +30,9 @@ curl -X PATCH https://schematalog.com/api/schemas/address/versions/1.0.0 \
   -d '{"successor": "https://schematalog.com/api/schemas/address/versions/2.0.0"}'
 ```
 
-A successor URL that points back at this registry is **internal**: it is validated
-(the target version must exist) and canonicalised. Any other absolute URL is kept
+A successor URL that points back at this registry, at a version's document or its
+metadata, is **internal**: it is validated (the target version must exist) and
+canonicalised to the document's URL. Any other absolute URL is kept
 as an **external** reference as-is. A self-referential or missing internal successor
 is rejected with `422 Unprocessable Entity`.
 

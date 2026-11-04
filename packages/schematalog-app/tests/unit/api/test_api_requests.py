@@ -366,6 +366,45 @@ def test_version_metadata_returns_the_complete_record(client, example_schema):
     assert record["schema"]["$id"] == record["canonical_url"]
 
 
+def test_a_metadata_url_as_successor_is_stored_as_the_canonical_url(client, example_schema):
+    """The detail page shows both URLs, so copying the wrong one must still work."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2/metadata"}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == f"{base}/2"
+
+
+def test_a_metadata_url_to_an_unknown_version_is_refused_as_successor(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/99/metadata"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_a_version_cannot_supersede_itself_through_its_metadata_url(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/1/metadata"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
 def test_version_document_stays_the_bare_document(client, example_schema):
     """The canonical $id answers the document alone - what a `$ref` resolver expects."""
     client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})

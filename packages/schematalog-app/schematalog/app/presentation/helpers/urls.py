@@ -19,11 +19,11 @@ from schematalog.app.application.schema import (
     SuccessorReference,
 )
 
-# Path shape of `get_json_schema` (with the name/version pattern), for recognising a
-# successor URL that points back at this registry.
+# Path shape of a version's document and metadata routes (with the name/version pattern),
+# for recognising a successor URL that points back at this registry.
 _INTERNAL_PATH = re.compile(
     r"^/api/schemas/(?P<name>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)"
-    r"/versions/(?P<version>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)$"
+    r"/versions/(?P<version>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)(?:/metadata)?$"
 )
 
 
@@ -42,11 +42,12 @@ def resolve_successor(
 ) -> tuple[SuccessorReference | None, SchemaIdentity | None]:
     """Resolve a submitted successor URL into a stored reference + optional internal target.
 
-    A URL pointing at this registry's own `get_json_schema` route is *internal*: it is
-    canonicalised (re-emitted via `canonical_url_for`, so predecessor matching is reliable)
-    and its `(name, version)` is returned for the service to existence-check. Any other
-    absolute URL is *external*: kept as-is, with no target. `None` (clearing the successor)
-    yields `(None, None)`. Route resolution is a presentation concern, hence it lives here.
+    A URL pointing at a version's document or metadata route in this registry is *internal*:
+    it is canonicalised (re-emitted via `canonical_url_for`, so predecessor matching is
+    reliable) and its `(name, version)` is returned for the service to existence-check. Any
+    other absolute URL is *external*: kept as-is, with no target. `None` (clearing the
+    successor) yields `(None, None)`. Route resolution is a presentation concern, hence it
+    lives here.
     """
     if url is None:
         return None, None
