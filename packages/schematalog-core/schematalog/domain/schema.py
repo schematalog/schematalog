@@ -198,8 +198,22 @@ class SchemaLabels(ValueObject):
     @field_validator("labels", mode="before")
     @classmethod
     def _canonicalise(cls, value: Any) -> Any:
-        """Fold, dedupe and sort, so equality agrees with behaviour."""
-        return tuple(sorted({to_lowercase_ascii(label) for label in value}))
+        """Fold, dedupe and sort, so equality agrees with behaviour.
+
+        Args:
+            value: The raw `labels` input; a bare string is one label, not its letters.
+
+        Returns:
+            The canonical labels, or anything else unchanged for the type check to refuse.
+        """
+        if isinstance(value, str):
+            value = (value,)
+        if not isinstance(value, Iterable):
+            return value
+        labels = tuple(value)
+        if not all(isinstance(label, str) for label in labels):
+            return labels
+        return tuple(sorted({to_lowercase_ascii(label) for label in labels}))
 
     @field_validator("labels")
     @classmethod
