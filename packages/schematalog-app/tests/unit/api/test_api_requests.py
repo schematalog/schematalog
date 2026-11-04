@@ -421,6 +421,56 @@ def test_a_metadata_url_as_successor_is_stored_as_the_canonical_url(client, exam
     assert response.json()["successor"] == f"{base}/2"
 
 
+@pytest.mark.parametrize("path", ["2/", "2/metadata/", "%32", "%32/metadata"])
+def test_another_spelling_of_a_version_url_is_stored_as_the_canonical_url(
+    client, example_schema, path
+):
+    """These reach the same route, so storing one as given would pass as external."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/{path}"}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == f"{base}/2"
+
+
+@pytest.mark.parametrize(
+    "path", ["1/", "1/metadata/", "%31/metadata", "99/", "99/metadata/", "%39%39"]
+)
+def test_another_spelling_of_a_version_url_is_still_checked_as_a_successor(
+    client, example_schema, path
+):
+    """A version cannot supersede itself or a missing version however the URL is written."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/{path}"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize("suffix", ["", "/metadata"])
+def test_a_successor_url_with_an_overlong_name_is_refused(client, example_schema, suffix):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    overlong = "x" * 300
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{overlong}/versions/1{suffix}"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
 def test_a_metadata_url_to_an_unknown_version_is_refused_as_successor(client, example_schema):
     name = example_schema["name"]
     client.post("/api/schemas", json={**example_schema, "version": "1"})

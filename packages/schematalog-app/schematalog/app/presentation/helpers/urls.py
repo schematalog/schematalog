@@ -8,10 +8,12 @@ too. Operates on the application's `SchemaView` vocabulary, never the domain ent
 
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import Request
+from pydantic import ValidationError
 
+from schematalog.app.application.exceptions import InvalidSuccessorError
 from schematalog.app.application.schema import (
     SchemaIdentity,
     SchemaName,
@@ -56,20 +58,29 @@ def resolve_successor(
 ) -> tuple[SuccessorReference | None, SchemaIdentity | None]:
     """Resolve a submitted successor URL into a stored reference + optional internal target.
 
-    A URL pointing at a version's document or metadata route in this registry is *internal*:
+    A URL pointing at a version's document or metadata route in this registry is *internal*,
+    with or without a trailing slash or percent-encoding, since those reach the same route:
     it is canonicalised (re-emitted via `canonical_url_for`, so predecessor matching is
     reliable) and its `(name, version)` is returned for the service to existence-check. Any
     other absolute URL is *external*: kept as-is, with no target. `None` (clearing the
     successor) yields `(None, None)`. Route resolution is a presentation concern, hence it
     lives here.
+
+    Raises:
+        InvalidSuccessorError: If an internal URL names something no version could be called.
     """
     if url is None:
         return None, None
     parsed = urlparse(url)
     base = request.base_url
-    match = _INTERNAL_PATH.match(parsed.path)
+    match = _INTERNAL_PATH.match(unquote(parsed.path).removesuffix("/"))
     if match and (parsed.scheme, parsed.netloc) == (base.scheme, base.netloc):
-        identity = SchemaIdentity(name=match["name"], version=match["version"])
+        try:
+            identity = SchemaIdentity(name=match["name"], version=match["version"])
+        except ValidationError as exc:
+            raise InvalidSuccessorError(  # noqa: TRY003
+                "The successor URL does not name a possible schema version."
+            ) from exc
         canonical = canonical_url_for(identity.name, identity.version, request)
         return SuccessorReference(url=canonical), identity
     return SuccessorReference(url=url), None
