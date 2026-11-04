@@ -30,7 +30,11 @@ from schematalog.app.application.schema import (
     to_lowercase_ascii,
 )
 from schematalog.app.presentation.helpers.property_type import render_property_type
-from schematalog.app.presentation.helpers.urls import canonical_url_for, stamp_canonical_id
+from schematalog.app.presentation.helpers.urls import (
+    canonical_url_for,
+    metadata_url_for,
+    stamp_canonical_id,
+)
 from schematalog.app.wiring.config import settings
 from schematalog.app.wiring.factories import get_service
 
@@ -206,11 +210,7 @@ async def schemas_detail(
             "render_property_type": render_property_type,
             "all_versions": all_versions,
             "canonical_url": url,
-            "metadata_url": str(
-                request.url_for(
-                    "get_schema_metadata", schema_name=view.name, version=view.version
-                )
-            ),
+            "metadata_url": metadata_url_for(view.name, view.version, request),
             "predecessors": predecessors,
         },
     )

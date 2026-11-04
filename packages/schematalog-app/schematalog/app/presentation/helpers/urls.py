@@ -37,6 +37,20 @@ def canonical_url_for(name: SchemaName, version: SchemaVersion, request: Request
     return str(request.url_for("get_json_schema", schema_name=name, version=version))
 
 
+def metadata_url_for(name: SchemaName, version: SchemaVersion, request: Request) -> str:
+    """Build the URL of a schema version's complete record.
+
+    Args:
+        name: The schema's name.
+        version: The version to address.
+        request: The current request, which supplies the route.
+
+    Returns:
+        The absolute URL of the version's metadata route.
+    """
+    return str(request.url_for("get_schema_metadata", schema_name=name, version=version))
+
+
 def resolve_successor(
     url: str | None, request: Request
 ) -> tuple[SuccessorReference | None, SchemaIdentity | None]:

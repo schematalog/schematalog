@@ -219,8 +219,7 @@ def test_schema_list_says_which_search_found_nothing(client, example_schema):
 
 
 def test_schema_detail_links_to_the_metadata_record(client, example_schema):
-    """Where the page's metadata comes from over the API - the demonstrative half of
-    the two-endpoint split, next to the canonical document URL."""
+    """The page shows where its metadata comes from over the API."""
     client.post("/api/schemas", json=example_schema)
 
     page = client.get(f"/schemas/{example_schema['name']}").text
@@ -229,6 +228,17 @@ def test_schema_detail_links_to_the_metadata_record(client, example_schema):
         f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}/metadata"
         in page
     )
+
+
+def test_schema_detail_links_to_the_record_of_the_version_shown(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+
+    page = client.get(f"/schemas/{name}", params={"version": "1"}).text
+
+    assert f"/api/schemas/{name}/versions/1/metadata" in page
+    assert f"/api/schemas/{name}/versions/2/metadata" not in page
 
 
 def test_schema_list_filters_by_a_label(client, example_schema):

@@ -348,7 +348,10 @@ def test_publishing_rejects_an_identifier_longer_than_the_column(client, example
 
 def test_version_metadata_returns_the_complete_record(client, example_schema):
     """The read the bare document URL cannot give: everything else the registry knows."""
-    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "description": "An order.", "labels": ["billing"]},
+    )
     url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
 
     response = client.get(f"{url}/metadata")
@@ -357,13 +360,46 @@ def test_version_metadata_returns_the_complete_record(client, example_schema):
     record = response.json()
     assert record["name"] == example_schema["name"]
     assert record["version"] == example_schema["version"]
+    assert record["description"] == "An order."
     assert record["labels"] == ["billing"]
     assert record["deprecated"] is False
     assert "publication_id" in record
+    assert "published_on" in record
     # The record points back at the document endpoint, and the document rides along,
     # stamped with the canonical $id like everywhere else.
     assert record["canonical_url"].endswith(url)
     assert record["schema"]["$id"] == record["canonical_url"]
+
+
+def test_version_metadata_reflects_a_lifecycle_update(client, example_schema):
+    """Mutable fields are the reason to read the record, so it must not serve stale ones."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    successor = f"http://testserver/api/schemas/{name}/versions/2"
+    client.patch(
+        f"/api/schemas/{name}/versions/1", json={"deprecated": True, "successor": successor}
+    )
+
+    record = client.get(f"/api/schemas/{name}/versions/1/metadata").json()
+
+    assert record["deprecated"] is True
+    assert record["successor"] == successor
+
+
+def test_version_metadata_advertises_the_same_links_as_the_document(client, example_schema):
+    """A client using only the record can still learn what a version supersedes."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+    client.patch(f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2"})
+
+    document = client.get(f"/api/schemas/{name}/versions/2")
+    record = client.get(f"/api/schemas/{name}/versions/2/metadata")
+
+    assert record.headers["Link"] == f'<{base}/1>; rel="predecessor-version"'
+    assert record.headers["Link"] == document.headers["Link"]
 
 
 def test_a_metadata_url_as_successor_is_stored_as_the_canonical_url(client, example_schema):
