@@ -316,7 +316,9 @@ class SchemaService:
             successor=command.successor if touch_successor else UNSET,
             labels=labels,
         )
-        metadata: dict[str, Any] = {"deprecated": updated.deprecated}
+        # What the request asked for, not `updated`: that holds what was read, which a
+        # concurrent update may since have changed.
+        metadata: dict[str, Any] = {"deprecated": command.deprecated}
         if touch_successor:
             metadata["successor"] = updated.successor
         if labels is not None:
