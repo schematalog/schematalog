@@ -425,15 +425,14 @@ async def schemas_publish_submit(
             request,
             service,
             fields,
-            "Labels are separated by spaces. Each may contain only letters, digits, '-', '_' "
-            f"and '.', up to {MAX_IDENTIFIER_LENGTH} characters, and a version may carry at "
-            f"most {MAX_LABELS_PER_SCHEMA} labels.",
+            "Labels are separated by spaces. Each must start with a letter or digit and may "
+            f"contain only letters, digits, '-', '_' and '.', up to {MAX_IDENTIFIER_LENGTH} "
+            f"characters, and a version may carry at most {MAX_LABELS_PER_SCHEMA} labels.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
         )
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
-        # field breaking a domain constraint. The exact cap lives in the domain, which
-        # presentation cannot import, so the wording spans the two rather than quoting it.
+        # field breaking a domain constraint.
         return await _render_publish_response(
             request,
             service,

@@ -73,8 +73,8 @@ A label is a free-form tag on one version, used to group schemas and to
 }
 ```
 
-A label may contain letters, digits, `-`, `_` and `.`, up to 256 characters, and a version
-may carry up to 32. Labels are stored in lowercase, without duplicates and in sorted
+A label may contain letters, digits, `-`, `_` and `.`, must start with a letter or a digit,
+and may be up to 256 characters long. A version may carry up to 32. Labels are stored in lowercase, without duplicates and in sorted
 order, so `Billing` and `billing` are the same label. A response always includes
 `labels`, as an empty list if there are none.
 
@@ -88,8 +88,8 @@ curl -X PATCH https://schematalog.com/api/schemas/address/versions/1.0.0 \
 ```
 
 **Labels belong to one version.** A new version published through the API starts with
-none, so it drops out of its groups until you label it. The web UI's publish form carries
-the previous version's labels forward for you.
+none, so it drops out of its groups until you label it. In the web UI, **Publish a new
+version** on a schema's page opens the form with that version's labels already filled in.
 
 Nothing stops two spellings of one idea, such as `payment` and `payments`. To reuse an
 existing spelling, check [the labels in use](retrieving.md#filtering-by-label) first.

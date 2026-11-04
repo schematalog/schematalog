@@ -25,7 +25,8 @@ What it offers:
   here and has no API equivalent.
 - **A publish form** (`/publish`) - the same operation as `POST /api/schemas`, with
   a schema editor, for a one-off publication you would otherwise write `curl` for. It
-  lists the labels in use, and a new version starts with the previous version's labels.
+  lists the labels in use, and when opened from a schema's page it starts with that
+  version's labels.
 
 Nothing here requires JavaScript to work; the editor and the copy buttons enhance
 pages that already function without them.

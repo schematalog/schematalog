@@ -198,6 +198,7 @@ def test_an_invalid_label_re_renders_the_form(client):
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert "Labels are separated by spaces" in response.text
+    assert "must start with a letter or digit" in response.text
 
 
 def test_seeded_form_carries_the_labels_forward(client):

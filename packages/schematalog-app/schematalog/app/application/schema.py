@@ -328,7 +328,7 @@ class SchemaService:
     async def list_labels(self) -> AsyncIterable[str]:
         """Every label carried by a latest version, ascending.
 
-        Backs the publish form's suggestions and the `GET /api/labels` listing - the
+        Backs the labels shown in the web UI and the `GET /api/labels` listing - the
         discoverability that steers spelling drift rather than preventing it.
         """
         async for label in self._repo.list_labels():
