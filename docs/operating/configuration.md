@@ -1,7 +1,9 @@
 # Configuration
 
 Schematalog is configured through environment variables (or a `.env` file), all
-prefixed with **`SCHEMATALOG_`**.
+prefixed with **`SCHEMATALOG_`**. Anything else in a `.env` file is ignored, and so is a
+misspelt setting: the application falls back to that setting's default without saying so.
+`schematalog info` shows which storage backend it ended up with.
 
 ```shell
 SCHEMATALOG_STORAGE_URL=file:///data/schemas
