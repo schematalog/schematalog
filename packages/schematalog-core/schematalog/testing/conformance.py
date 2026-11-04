@@ -467,6 +467,21 @@ class SchemaRepositoryConformance:
             )
         ] == ["alpha"]
 
+    async def test_list_latest_requires_both_the_query_and_the_labels(self, repository):
+        """The registry always passes both, so a backend has to honour them together."""
+        await repository.add(build_schema(name="billing.one", version="1", labels=["payments"]))
+        await repository.add(build_schema(name="billing.two", version="1", labels=["shipping"]))
+        await repository.add(build_schema(name="other.three", version="1", labels=["payments"]))
+
+        found = [
+            s.name
+            async for s in repository.list_latest(
+                query=SearchQuery(text="billing"), labels=SchemaLabels(labels=("payments",))
+            )
+        ]
+
+        assert found == ["billing.one"]
+
     async def test_list_latest_matches_a_label_exactly(self, repository):
         """A label is a token, not text: `payment` does not match `payments`.
 
