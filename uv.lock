@@ -1304,7 +1304,7 @@ dependencies = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "datamodel-code-generator", specifier = ">=0.60.0" },
+    { name = "datamodel-code-generator", specifier = ">=0.89.0" },
     { name = "fastapi", specifier = ">=0.122.0" },
     { name = "jinja2", specifier = ">=3.1.4" },
     { name = "markupsafe", specifier = ">=2.1.0" },

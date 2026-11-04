@@ -38,6 +38,11 @@ dropped before generation: it is an absolute URL pointing back at this registry,
 leaving it in would make the code generator try to fetch it as a remote base. The
 generated code does not need it.
 
+The tab only generates code from what is in the schema's own document, so a schema with a
+`$ref` to another file or URL shows a note instead. It is still stored and served as
+published, and a validator can follow that reference itself. A schema the generator cannot
+handle shows the same kind of note.
+
 The code is written for Python 3.14. A schema that refers to itself, or schemas that refer
 to each other, generate models that need 3.14: on older versions they raise `NameError`
 unless you add `from __future__ import annotations` at the top.

@@ -47,6 +47,34 @@ def test_a_page_for_a_name_or_version_no_schema_could_have_is_404(client, exampl
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
+def test_a_schema_referring_to_a_server_file_does_not_show_it(client, tmp_path):
+    """The rest of the page still works, and the schema stays as it was published."""
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"type": "object", "properties": {"secret_field": {"type": "string"}}}')
+    published = client.post(
+        "/api/schemas", json={"name": "a", "version": "1", "schema": {"$ref": str(secret)}}
+    )
+    assert published.status_code == HTTPStatus.CREATED
+
+    response = client.get("/schemas/a")
+
+    assert response.status_code == HTTPStatus.OK
+    assert "secret_field" not in response.text
+    assert "cannot be generated" in response.text
+
+
+def test_a_schema_the_generator_cannot_handle_still_has_a_page(client):
+    client.post(
+        "/api/schemas",
+        json={"name": "a", "version": "1", "schema": {"title": "1st", "type": "object"}},
+    )
+
+    response = client.get("/schemas/a")
+
+    assert response.status_code == HTTPStatus.OK
+    assert "cannot be generated" in response.text
+
+
 def test_unknown_schema_detail_returns_404(client):
     response = client.get("/schemas/does-not-exist")
     assert response.status_code == HTTPStatus.NOT_FOUND

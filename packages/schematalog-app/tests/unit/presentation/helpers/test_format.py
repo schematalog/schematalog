@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import yaml
 
 from schematalog.app.presentation.helpers import format as fmt
@@ -72,6 +73,68 @@ def test_pydantic_output_for_a_schema_that_refers_to_itself_can_be_used():
 
     node = namespace["Node"].model_validate({"name": "a", "child": {"name": "b"}})
     assert node.child.name == "b"
+
+
+@pytest.mark.parametrize("keyword", ["$ref", "$dynamicRef", "$recursiveRef"])
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        lambda ref: ref,
+        lambda ref: {"type": "object", "properties": {"a": ref}},
+        lambda ref: {"allOf": [ref]},
+        lambda ref: {"type": "array", "items": ref},
+        lambda ref: {"$defs": {"a": ref}, "$ref": "#/$defs/a"},
+    ],
+)
+def test_pydantic_never_opens_a_file_a_schema_refers_to(tmp_path, keyword, wrap):
+    """A schema comes from an anonymous publisher, and the file is on the server."""
+    secret = tmp_path / "secret.json"
+    secret.write_text('{"type": "object", "properties": {"secret_field": {"type": "string"}}}')
+
+    with pytest.raises(fmt.PydanticGenerationError, match="outside its own document"):
+        fmt.to_pydantic(wrap({keyword: str(secret)}))
+
+
+@pytest.mark.parametrize(
+    "reference",
+    ["https://example.org/a.json", "other.json#/x", "file:///etc/x.json", " #/spaced"],
+)
+def test_pydantic_refuses_a_reference_outside_the_document(reference):
+    with pytest.raises(fmt.PydanticGenerationError, match="outside its own document"):
+        fmt.to_pydantic({"$ref": reference})
+
+
+def test_pydantic_still_follows_a_reference_inside_the_document():
+    document = {
+        "title": "Order",
+        "type": "object",
+        "properties": {"total": {"$ref": "#/$defs/money"}},
+        "$defs": {"money": {"type": "number"}},
+    }
+
+    assert "total: Money | None = None" in fmt.to_pydantic(document)
+
+
+def test_pydantic_allows_a_property_named_like_a_reference_keyword():
+    document = {"title": "T", "type": "object", "properties": {"$ref": {"type": "string"}}}
+
+    assert "class T(BaseModel)" in fmt.to_pydantic(document)
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"title": "1st", "type": "object"},
+        {"$ref": "#/$defs/a", "$defs": {"a": {"$ref": "#/$defs/a"}}},
+        {
+            "$defs": {"com.example.Foo": {"type": "object"}},
+            "properties": {"a": {"$ref": "#/$defs/com.example.Foo"}},
+        },
+    ],
+)
+def test_pydantic_reports_a_schema_the_generator_cannot_handle(document):
+    with pytest.raises(fmt.PydanticGenerationError):
+        fmt.to_pydantic(document)
 
 
 def test_pydantic_drops_canonical_id_and_resolves_refs_locally():

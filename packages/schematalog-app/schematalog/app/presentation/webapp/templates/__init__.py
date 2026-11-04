@@ -40,7 +40,10 @@ def python_filter(value: Any):
             value = json.loads(value)
         except json.JSONDecodeError:
             pass
-    return fmt.to_pydantic(value)
+    try:
+        return fmt.to_pydantic(value)
+    except fmt.PydanticGenerationError as exc:
+        return f"# Python models cannot be generated for this schema: {exc}."
 
 
 @pass_context
