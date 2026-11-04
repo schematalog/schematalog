@@ -78,3 +78,24 @@ async def test_seed_lets_the_successor_find_its_predecessor(seeded_service):
     ]
 
     assert predecessors == ["1.1"]
+
+
+async def test_seed_offers_labels_to_filter_by(seeded_service):
+    """Without any, the demo has no label badges to show."""
+    service = await seeded_service("https://registry.example.org")
+
+    labels = [label async for label in service.list_labels()]
+
+    assert labels == ["analytics", "billing", "catalog", "commerce", "customer", "identity"]
+
+
+async def test_seed_labels_versions_an_earlier_run_published(tmp_path):
+    """Re-seeding is how a store already holding the samples gains their labels."""
+    storage_url = f"file://{tmp_path}"
+    await _publish_samples(SchemaService(build_schema_repository(storage_url)))
+
+    await seed(storage_url, "https://registry.example.org")
+
+    service = SchemaService(build_schema_repository(storage_url))
+    order = await service.get_schema(GetSchemaCommand(name="example.order", version="1.1"))
+    assert order.labels == ["billing", "commerce"]
