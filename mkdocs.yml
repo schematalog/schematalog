@@ -78,6 +78,7 @@ nav:
     - operating/index.md
     - operating/configuration.md
     - operating/storage.md
+    - operating/deploying.md
     - operating/writing-a-backend.md
   - Using the API:
     - api/index.md
