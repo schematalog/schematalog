@@ -208,7 +208,7 @@ class SchemaLabels(ValueObject):
         """
         if isinstance(value, str):
             value = (value,)
-        if not isinstance(value, Iterable):
+        if not isinstance(value, Iterable) or isinstance(value, Mapping):
             return value
         labels = tuple(value)
         if not all(isinstance(label, str) for label in labels):
