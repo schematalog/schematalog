@@ -198,8 +198,7 @@ regen-code-css:
 docs:
     uv run --group docs mkdocs serve --livereload -a localhost:7000
 
-# Populate the configured storage (see .env) with sample schemas. Idempotent. Pass
-# `--base-url <url>` when seeding an instance browsed somewhere other than localhost.
+# Populate the configured storage with sample schemas; `--base-url <url>` if not on localhost.
 seed *flags:
     uv run python -m scripts.seed {{flags}}
 

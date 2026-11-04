@@ -1,6 +1,8 @@
 """Populate the configured storage with sample schemas, locally or on a demo instance.
 
-Idempotent - schemas that already exist are skipped, so it is safe to re-run.
+Idempotent for one base URL - schemas that already exist are skipped, so it is safe to
+re-run with the same one. A different one rewrites the internal successor, so it matters on
+a demo instance too, where leaving it out stores a successor under localhost.
 Targets whatever backend `.env` / `Settings` points at (SQLite by default, or the
 compose Postgres). Publishing goes through `SchemaService`, so the samples are
 metaschema-validated exactly like real input.
@@ -217,7 +219,7 @@ async def _publish_samples(service: SchemaService) -> tuple[int, int]:
     return created, skipped
 
 
-async def _apply_metadata(service: SchemaService, base_url: str = _DEFAULT_BASE_URL) -> None:
+async def _apply_metadata(service: SchemaService, base_url: str) -> None:
     """Apply the deprecated/successor metadata to the relevant samples (idempotent).
 
     Args:
@@ -234,13 +236,14 @@ async def _apply_metadata(service: SchemaService, base_url: str = _DEFAULT_BASE_
         print(f"  meta  {name} {version} (deprecated={deprecated}, successor={successor_url})")
 
 
-async def seed(base_url: str = _DEFAULT_BASE_URL) -> None:
-    """Publish every sample schema into the configured storage, then stamp lifecycle metadata.
+async def seed(storage_url: str, base_url: str) -> None:
+    """Publish every sample schema into a store, then stamp lifecycle metadata.
 
     Args:
+        storage_url: The store to populate.
         base_url: Where the instance is browsed.
     """
-    repo = build_schema_repository(settings.STORAGE_URL)
+    repo = build_schema_repository(storage_url)
     service = SchemaService(repo)
     try:
         created, skipped = await _publish_samples(service)
@@ -260,4 +263,4 @@ if __name__ == "__main__":
         default=_DEFAULT_BASE_URL,
         help="where the instance is browsed, for its internal successor links",
     )
-    asyncio.run(seed(parser.parse_args().base_url))
+    asyncio.run(seed(settings.STORAGE_URL, parser.parse_args().base_url))
