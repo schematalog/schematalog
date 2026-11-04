@@ -1,6 +1,6 @@
 # Retrieving schemas
 
-There are four read shapes, plus a name-only convenience redirect.
+There are four read shapes, plus a name-only convenience redirect and a list of labels.
 
 | Request | Returns |
 | --- | --- |
