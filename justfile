@@ -198,9 +198,9 @@ regen-code-css:
 docs:
     uv run --group docs mkdocs serve --livereload -a localhost:7000
 
-# Populate the configured storage (see .env) with sample schemas. Idempotent.
-seed:
-    uv run python -m scripts.seed
+# Populate the configured storage with sample schemas; `--base-url <url>` if not on localhost.
+seed *flags:
+    uv run python -m scripts.seed {{flags}}
 
 # Recreate the local SQLite dev DB and reseed (use after a schema change).
 [confirm("Delete db.sqlite3 and reseed? [y/N]")]
