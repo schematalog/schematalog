@@ -40,6 +40,7 @@ class Settings(BaseSettings):
         env_prefix="SCHEMATALOG_",
         env_file=".env",
         env_nested_delimiter="__",
+        extra="ignore",
     )
 
     DEBUG: bool = False

@@ -1,8 +1,7 @@
 # Configuration
 
 Schematalog is configured through environment variables (or a `.env` file), all
-prefixed with **`SCHEMATALOG_`**. A `.env` file must hold only these settings: any other
-line stops the application from starting.
+prefixed with **`SCHEMATALOG_`**.
 
 ```shell
 SCHEMATALOG_STORAGE_URL=file:///data/schemas
