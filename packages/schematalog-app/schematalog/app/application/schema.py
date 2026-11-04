@@ -25,6 +25,8 @@ from schematalog.common.validation import IncompatibleSchemaError, normalise_for
 from schematalog.domain.exceptions import SchemaConflictError, UnknownSchemaError
 
 # Re-exported for presentation, which must not import from `domain`.
+from schematalog.domain.schema import MAX_IDENTIFIER_LENGTH as MAX_IDENTIFIER_LENGTH
+from schematalog.domain.schema import MAX_LABELS_PER_SCHEMA as MAX_LABELS_PER_SCHEMA
 from schematalog.domain.schema import QUERY_PATTERN as QUERY_PATTERN
 from schematalog.domain.schema import (
     UNSET,
@@ -39,6 +41,7 @@ from schematalog.domain.schema import (
     SearchQuery,
     SuccessorReference,
 )
+from schematalog.domain.schema import to_lowercase_ascii as to_lowercase_ascii
 
 log = get_logger(__name__)
 

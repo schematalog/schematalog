@@ -3,10 +3,11 @@ from http import HTTPStatus
 import json
 import re
 from typing import Annotated, Any
+from urllib.parse import urlencode
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from markupsafe import Markup, escape
 from pydantic import BaseModel, ValidationError
 
@@ -17,6 +18,8 @@ from schematalog.app.application.exceptions import (
     InvalidSearchQueryError,
 )
 from schematalog.app.application.schema import (
+    MAX_IDENTIFIER_LENGTH,
+    MAX_LABELS_PER_SCHEMA,
     GetSchemaCommand,
     ListLatestCommand,
     ListPredecessorsCommand,
@@ -24,6 +27,7 @@ from schematalog.app.application.schema import (
     PublishCommand,
     SchemaService,
     SchemaView,
+    to_lowercase_ascii,
 )
 from schematalog.app.presentation.helpers.property_type import render_property_type
 from schematalog.app.presentation.helpers.urls import canonical_url_for, stamp_canonical_id
@@ -75,6 +79,46 @@ async def homepage(request: Request):
     return templates.TemplateResponse(request=request, name="index.html.jinja")
 
 
+def _build_list_url(request: Request, query: str, labels: list[str]) -> str:
+    """Build the schema list's URL for a search and a set of labels.
+
+    Args:
+        request: The current request, which supplies the route.
+        query: The search text; empty leaves it out of the URL.
+        labels: The labels to filter on.
+
+    Returns:
+        The absolute URL of that listing.
+    """
+    params = [("q", query)] if query else []
+    params.extend(("label", label) for label in labels)
+    return str(request.url_for("schemas_list").replace(query=urlencode(params)))
+
+
+def _build_label_filters(
+    request: Request, query: str, labels_in_use: list[str], active_labels: list[str]
+) -> list[dict[str, Any]]:
+    """Build the list page's label badges, each toggling itself in the current filters.
+
+    Args:
+        request: The current request, which supplies the route.
+        query: The current search text, which every badge keeps.
+        labels_in_use: The labels to offer.
+        active_labels: The labels currently filtered on.
+
+    Returns:
+        Each label with whether it is active and the URL that toggles it.
+    """
+    return [
+        {
+            "label": used,
+            "is_active": used in active_labels,
+            "url": _build_list_url(request, query, sorted(set(active_labels) ^ {used})),
+        }
+        for used in labels_in_use
+    ]
+
+
 @router.get("/schemas/", name="schemas_list")
 async def schemas_list(
     request: Request,
@@ -106,14 +150,18 @@ async def schemas_list(
         schemas, valid = [], False
     else:
         valid = True
+    active_labels = sorted({to_lowercase_ascii(used) for used in label or []})
+    labels_in_use = [used async for used in service.list_labels()]
     return templates.TemplateResponse(
         request,
         "schemas.html.jinja",
         {
             "schemas": schemas,
             "query": q,
-            "labels": label or [],
-            "labels_in_use": [used async for used in service.list_labels()],
+            "labels": active_labels,
+            "label_filters": _build_label_filters(request, q, labels_in_use, active_labels),
+            "clear_query_url": _build_list_url(request, "", active_labels),
+            "clear_labels_url": _build_list_url(request, q, []),
             "query_is_valid": valid,
             "max_query_length": settings.MAX_QUERY_LENGTH,
         },
@@ -129,6 +177,7 @@ async def schemas_detail(
 ):
     """Retrieve a version of a schema (the latest if none is selected)."""
     view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version or None))
+    latest = await service.get_schema(GetSchemaCommand(name=schema_name)) if version else view
     serialized, url = _build_template_schema(view, request)
     all_versions = [
         v.version
@@ -152,6 +201,7 @@ async def schemas_detail(
         "schema.html.jinja",
         {
             "current_version": version,
+            "is_latest": view.version == latest.version,
             "schema": serialized,
             "render_property_type": render_property_type,
             "all_versions": all_versions,
@@ -194,20 +244,31 @@ _STARTER_DOCUMENT = json.dumps(
 )
 
 
-def _render_publish_response(
+async def _render_publish_response(
     request: Request,
+    service: SchemaService,
     fields: dict[str, str],
     error: str | None = None,
     status_code: int = HTTPStatus.OK,
     based_on: str | None = None,
-    labels_in_use: list[str] | None = None,
-):
+) -> Response:
     """Render the publish form, echoing back what was submitted plus any error.
 
-    `based_on` is the version a "publish a new version" form was seeded from; it only
-    changes the heading, so the page can say what it is continuing from. `labels_in_use`
-    feeds the label field's suggestions - the nudge towards reusing an existing
-    spelling rather than coining `payments` beside `payment`.
+    The labels in use appear beside the label field, to steer a publisher towards an
+    existing spelling. Reading them scans the store, so it happens only here, when a page
+    is actually going to show them.
+
+    Args:
+        request: The current request.
+        service: The service to read the labels in use from.
+        fields: The form values to show.
+        error: A message for the person filling the form in, if the submission failed.
+        status_code: The response's status.
+        based_on: The version a "publish a new version" form was seeded from, for the
+            heading.
+
+    Returns:
+        The rendered page.
     """
     return templates.TemplateResponse(
         request,
@@ -216,7 +277,7 @@ def _render_publish_response(
             "fields": fields,
             "error": error,
             "based_on": based_on,
-            "labels_in_use": labels_in_use or [],
+            "labels_in_use": [used async for used in service.list_labels()],
         },
         status_code=status_code,
     )
@@ -267,10 +328,10 @@ async def schemas_publish(
     version" path off the detail page - with the version suggestion bumped, since
     republishing the same one is always a conflict. Otherwise it opens blank.
     """
-    labels_in_use = [used async for used in service.list_labels()]
     if not name:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             {
                 "name": "",
                 "version": "1.0",
@@ -278,11 +339,11 @@ async def schemas_publish(
                 "labels": "",
                 "json_schema": _STARTER_DOCUMENT,
             },
-            labels_in_use=labels_in_use,
         )
     view = await service.get_schema(GetSchemaCommand(name=name, version=version or None))
-    return _render_publish_response(
+    return await _render_publish_response(
         request,
+        service,
         {
             "name": view.name,
             "version": _suggest_next_version(view.version),
@@ -296,7 +357,6 @@ async def schemas_publish(
             "json_schema": json.dumps(view.document, indent=2),
         },
         based_on=view.version,
-        labels_in_use=labels_in_use,
     )
 
 
@@ -355,41 +415,41 @@ async def schemas_publish_submit(
         "json_schema": form.json_schema,
     }
     command, error = _build_publish_command(fields)
-    labels_in_use = [used async for used in service.list_labels()]
     if command is None:
-        return _render_publish_response(
-            request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY, labels_in_use=labels_in_use
+        return await _render_publish_response(
+            request, service, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY
         )
     try:
         view = await service.publish_schema(command)
     except InvalidLabelError:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
-            "Labels are separated by spaces, and each may contain only letters, "
-            "digits, '-', '_' and '.'.",
+            "Labels are separated by spaces. Each may contain only letters, digits, '-', '_' "
+            f"and '.', up to {MAX_IDENTIFIER_LENGTH} characters, and a version may carry at "
+            f"most {MAX_LABELS_PER_SCHEMA} labels.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
-            labels_in_use=labels_in_use,
         )
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
         # field breaking a domain constraint. The exact cap lives in the domain, which
         # presentation cannot import, so the wording spans the two rather than quoting it.
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
             "The document does not conform to any supported JSON Schema metaschema, "
             "or a field is longer than allowed.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
-            labels_in_use=labels_in_use,
         )
     except DuplicateSchemaError:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
             f"Version '{fields['version']}' of '{fields['name']}' already exists.",
             HTTPStatus.CONFLICT,
-            labels_in_use=labels_in_use,
         )
     return RedirectResponse(
         str(

@@ -157,6 +157,19 @@ def test_schema_labels_accept_a_bare_string_as_one_label():
     assert list(SchemaLabels.model_validate("payments")) == ["payments"]
 
 
+def test_schema_labels_read_a_string_field_value_as_one_label():
+    labels = SchemaLabels(labels="payments")
+
+    assert list(labels) == ["payments"]
+
+
+@pytest.mark.parametrize("raw", [[1], None, 1])
+def test_schema_labels_refuse_input_that_is_not_strings(raw):
+    """A malformed stored record fails validation rather than crashing it."""
+    with pytest.raises(ValidationError):
+        SchemaLabels(labels=raw)
+
+
 def test_schema_labels_serialise_flat_to_a_list():
     assert SchemaLabels(labels=("b", "a")).model_dump() == ["a", "b"]
 

@@ -22,7 +22,7 @@ through.
 
 ## The five methods
 
-Subclass `SchemaRepository` and implement these. Subclassing is not a formality: three
+Subclass `SchemaRepository` and implement these. Subclassing is not a formality: four
 further methods are *derived* from yours in the base class, and inheriting them is how
 you get them right.
 
@@ -34,6 +34,7 @@ from schematalog.domain.schema import (
     UNSET,
     Schema,
     SchemaIdentity,
+    SchemaLabels,
     SchemaName,
     SchemaRepository,
     SuccessorReference,
@@ -60,12 +61,13 @@ class MySchemaRepository(SchemaRepository):
         *,
         deprecated: bool | None = None,
         successor: SuccessorReference | None | Unset = UNSET,
+        labels: SchemaLabels | None = None,
     ) -> Schema:
         """Update the mutable metadata and return the updated version.
 
         `deprecated` changes only when non-None; `successor` changes only when it is not
-        `UNSET`, where `None` clears it. Raises UnknownSchemaError if the version does
-        not exist.
+        `UNSET`, where `None` clears it; `labels` replaces the whole set when non-None, and
+        an empty set clears it. Raises UnknownSchemaError if the version does not exist.
         """
 
     def list_versions(self, schema_name: SchemaName) -> AsyncIterable[Schema]:
@@ -81,13 +83,15 @@ class MySchemaRepository(SchemaRepository):
 Note the last two are declared as plain `def` returning an `AsyncIterable`, which is what
 an `async def ... yield` generator is.
 
-`get_latest`, `list_latest` and `list_predecessors` come free. Override them only if your
-store can answer them in fewer round trips than the default loop - the SQL backend does,
-with one query each. **Resist reimplementing the `latest` rule while you are there.** Two
-of the derived methods encode it, and it is policy rather than storage: the newest version
-that is still current - neither deprecated nor superseded - falling back to the newest
-outright when every version is disqualified, so that a schema always has a latest.
-Inheriting it means you are correct about it before you have read this paragraph.
+`get_latest`, `list_latest`, `list_predecessors` and `list_labels` come free. Override them
+only if your store can answer them in fewer round trips than the default loop - the SQL
+backend does for the first three. An override keeps the base class's signature: the
+registry always passes `list_latest` both its `query` and `labels` keywords, so leaving
+one out fails every listing. **Resist reimplementing the `latest` rule while you are
+there.** Three of the derived methods encode it, and it is policy rather than storage: the
+newest version that is still current - neither deprecated nor superseded - falling back to
+the newest outright when every version is disqualified, so that a schema always has a
+latest. Inheriting it means you are correct about it before you have read this paragraph.
 
 ## What the contract expects that the signatures do not say
 
@@ -255,4 +259,4 @@ operator finds out your backend is misconfigured before their users do.
   thing to a template for what you are about to write.
 - **The probe backend**, in `tests/unit/wiring/_plugin_probe/backend.py` - the five methods
   and nothing else, stored in a list. It is the smallest possible demonstration that the
-  derived three come out correct for free.
+  derived four come out correct for free.

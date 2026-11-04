@@ -144,14 +144,43 @@ def test_seeding_from_an_unknown_schema_is_a_404(client):
     assert client.get("/publish?name=nope").status_code == HTTPStatus.NOT_FOUND
 
 
-def test_publish_form_suggests_the_labels_in_use(client):
-    """Reusing a spelling is the whole point of the suggestion list."""
-    client.post("/publish", data=_form(labels="billing"))
+def test_publish_form_lists_the_labels_in_use(client):
+    """Seeing a spelling is what lets a publisher reuse it."""
+    client.post("/publish", data=_form(labels="billing payments"))
 
     response = client.get("/publish")
 
-    assert '<datalist id="labels-in-use">' in response.text
-    assert '<option value="billing">' in response.text
+    assert "In use: billing, payments" in response.text
+
+
+def test_a_successful_publish_does_not_read_the_labels_in_use(client, monkeypatch):
+    """Only a re-rendered form shows them, so a failure to list them cannot block a publish."""
+
+    def refuse_to_list():
+        raise AssertionError
+
+    monkeypatch.setattr(client.app.state.schemas, "list_labels", refuse_to_list)
+
+    response = client.post("/publish", data=_form(labels="billing"))
+
+    assert response.status_code == HTTPStatus.OK
+    assert "billing" in response.text
+
+
+def test_too_many_labels_re_render_the_form_with_the_limit(client):
+    labels = " ".join(f"label-{i}" for i in range(33))
+
+    response = client.post("/publish", data=_form(labels=labels))
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert "at most 32 labels" in response.text
+
+
+def test_an_overlong_label_re_renders_the_form_with_the_limit(client):
+    response = client.post("/publish", data=_form(labels="x" * 257))
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert "up to 256 characters" in response.text
 
 
 def test_publishing_with_labels_shows_them_on_the_detail_page(client):

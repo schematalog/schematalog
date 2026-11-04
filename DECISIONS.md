@@ -69,7 +69,9 @@ multi-word drift (`customer data` versus `customer-data`) on top of the rest. Wh
 mechanical is left alone: singular versus plural is a language question, and stemming was
 rejected for search for the same reason it fails here - no two implementations agree. The
 steering is discoverability: a publisher can see what already exists (below), and the
-publish form suggests as it types.
+publish form lists the labels in use beside the field. It does not suggest as they type:
+a browser's suggestion list treats a single field as one value, so on a space-separated
+field it stops matching after the first label, and picking one erases the rest.
 
 **Caps, both generous.** A label shares the name's length cap (`MAX_IDENTIFIER_LENGTH`) -
 it is a stored token like a name, not a typed query, so no third constant. A version
@@ -105,7 +107,7 @@ different. Without pagination this stands exactly where `q` stands today.
 latest versions, ascending - a derived repository method with an in-Python default, so
 the five-method contract is untouched. It is the smallest piece and the one that makes
 the drift story more than a shrug: a publisher cannot reuse a spelling they cannot
-discover, and the UI's suggestions need a source.
+discover, and the publish form's list needs a source.
 
 **Storage.** The SQL backends gain one `labels` JSON column, `NOT NULL` with a `[]`
 default; databases are recreated, as every pre-1.0 schema change is. Every other backend
