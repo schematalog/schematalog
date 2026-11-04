@@ -150,7 +150,9 @@ async def schemas_list(
         schemas, valid = [], False
     else:
         valid = True
-    active_labels = sorted({to_lowercase_ascii(used) for used in label or []})
+    # A refused filter stays out of the links, or following one would only be refused again.
+    link_query = q if valid else ""
+    active_labels = sorted({to_lowercase_ascii(used) for used in label or []}) if valid else []
     labels_in_use = [used async for used in service.list_labels()]
     return templates.TemplateResponse(
         request,
@@ -159,9 +161,11 @@ async def schemas_list(
             "schemas": schemas,
             "query": q,
             "labels": active_labels,
-            "label_filters": _build_label_filters(request, q, labels_in_use, active_labels),
+            "label_filters": _build_label_filters(
+                request, link_query, labels_in_use, active_labels
+            ),
             "clear_query_url": _build_list_url(request, "", active_labels),
-            "clear_labels_url": _build_list_url(request, q, []),
+            "clear_labels_url": _build_list_url(request, link_query, []),
             "query_is_valid": valid,
             "max_query_length": settings.MAX_QUERY_LENGTH,
         },
