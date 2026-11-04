@@ -34,7 +34,8 @@ put the whole thing in version control. For a *schema* registry that is a real f
 rather than a curiosity - the data is text that people write and review.
 
 Choose it over SQLite when you want the store inspectable or under git; choose SQLite
-when you would rather not think about the files at all.
+when you would rather not think about the files at all. Changing a version's metadata
+rewrites its whole file, so of two changes landing at the same moment, one can be lost.
 
 ### A container platform, with ephemeral disk
 
@@ -78,7 +79,9 @@ part of the estate.
 
 It is a reasonable choice for several instances too. A published version is written once
 and never changed, and creation uses a conditional write, so two instances publishing the
-same version cannot both win. What it is *not* is fast at listing: naming every schema
+same version cannot both win. Changing a version's metadata has no such protection: the
+whole object is read and written back, so of two changes landing at the same moment, one
+can be lost. Nor is it fast at listing: naming every schema
 costs a request per thousand, and reading every version of one schema costs a request per
 object. For a catalog of hundreds that is unnoticeable; for one of hundreds of thousands
 it is the wrong shape.

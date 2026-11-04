@@ -144,8 +144,8 @@ class TestMyBackendConformance(SchemaRepositoryConformance):
 ```
 
 Every case in the suite is `async def`, so **pytest-asyncio must be in automatic mode**
-or none of them will run - in its default strict mode you get 27 errors about an async
-fixture nothing handled, rather than 27 results. The plugin arrives with the `testing`
+or none of them will run - in its default strict mode you get an error per case about an
+async fixture nothing handled, rather than a result. The plugin arrives with the `testing`
 extra; the mode is one line you have to add:
 
 ```toml
@@ -153,7 +153,7 @@ extra; the mode is one line you have to add:
 asyncio_mode = "auto"
 ```
 
-That is 27 cases covering all eight methods, run against a sample document with nesting,
+That covers every method, run against a sample document with nesting,
 arrays and mixed types - a trivial `{"type": "object"}` round-trips through almost
 anything and so proves almost nothing. Every backend in the registry signs this suite, and
 so does the S3 one, which lives outside it entirely.
