@@ -1,7 +1,8 @@
 # Configuration
 
 Schematalog is configured through environment variables (or a `.env` file), all
-prefixed with **`SCHEMATALOG_`**.
+prefixed with **`SCHEMATALOG_`**. A `.env` file must hold only these settings: any other
+line stops the application from starting.
 
 ```shell
 SCHEMATALOG_STORAGE_URL=file:///data/schemas
@@ -21,7 +22,7 @@ rather than a failed launch.
 | --- | --- | --- |
 | `SCHEMATALOG_DEBUG` | `false` | Enables debug mode and verbose logging. |
 | `SCHEMATALOG_ENVIRONMENT` | `development` | Deployment *stage*: `development`, `staging`, or `production`. |
-| `SCHEMATALOG_PLATFORM` | `local` | Deployment *target*: `local`, `compose`, or `fly`. |
+| `SCHEMATALOG_PLATFORM` | `local` | Deployment *target*: `local`, `compose`, or `fly`. Only reported, and [left unset on any other host](deploying.md#settings-that-only-label-an-instance). |
 | `SCHEMATALOG_STORAGE_URL` | `sqlite:///./schematalog.db` | The store: scheme selects the backend. |
 
 `ENVIRONMENT` and `PLATFORM` are orthogonal axes: one platform can host several
@@ -43,8 +44,9 @@ completely; there is no second place to look. For *which* backend to choose, see
 | `s3` | Objects in an S3 bucket | `s3://bucket/prefix?region=eu-west-2` (needs `schematalog-s3`) |
 
 The async driver is filled in for you: `sqlite:` becomes `sqlite+aiosqlite:` and
-`postgresql:` becomes `postgresql+asyncpg:`, so a platform-provided `DATABASE_URL` can
-be used verbatim. Naming a driver explicitly leaves it alone.
+`postgresql:` becomes `postgresql+asyncpg:`, so a platform-provided `DATABASE_URL` works
+apart from the connection parameters it carries (see below). Those two drivers can also be
+named outright; no other is accepted.
 
 ### Options
 
@@ -59,8 +61,10 @@ The SQLAlchemy backends take two, as query parameters:
 SCHEMATALOG_STORAGE_URL="postgresql://user:pass@host/dbname?pool_recycle=900"
 ```
 
-Any parameter the backend does not claim is left on the URL for the driver, so
-`?sslmode=require` reaches PostgreSQL untouched.
+Any parameter the backend does not claim is left on the URL for the driver, and the
+PostgreSQL driver takes only its own. [Deploying](deploying.md#choosing-where-the-data-lives)
+says how to edit a URL from a provider, which usually carries `sslmode` and often
+`channel_binding`.
 
 Schemes from installed backends work the same way: `s3` above comes from the separate
 `schematalog-s3` package, and installing it is the whole of the configuration.

@@ -1,8 +1,9 @@
 """Populate the configured storage with sample schemas, locally or on a demo instance.
 
-Idempotent for one base URL - schemas that already exist are skipped, so it is safe to
-re-run with the same one. A different one rewrites the internal successor, so it matters on
-a demo instance too, where leaving it out stores a successor under localhost.
+Idempotent for one base URL - schemas that already exist are skipped and their labels
+and lifecycle metadata set again, so it is safe to re-run with the same one. A different
+one rewrites the internal successor, so it matters on a demo instance too, where leaving it
+out stores a successor under localhost. The store must have the current tables.
 Targets whatever backend `.env` / `Settings` points at (SQLite by default, or the
 compose Postgres). Publishing goes through `SchemaService`, so the samples are
 metaschema-validated exactly like real input.
@@ -169,6 +170,16 @@ SAMPLE_SCHEMAS: list[tuple[str, str, dict[str, Any]]] = [
     ),
 ]
 
+# By name, so every version of a sample carries the same labels.
+_SAMPLE_LABELS: dict[str, list[str]] = {
+    "example.user": ["customer", "identity"],
+    "example.order": ["billing", "commerce"],
+    "example.product": ["catalog", "commerce"],
+    "example.event": ["analytics"],
+    "example.address": ["customer"],
+    "example.payment": ["billing", "commerce"],
+}
+
 # Where `just serve` is browsed.
 _DEFAULT_BASE_URL = "http://localhost:3000"
 
@@ -219,6 +230,20 @@ async def _publish_samples(service: SchemaService) -> tuple[int, int]:
     return created, skipped
 
 
+async def _apply_labels(service: SchemaService) -> None:
+    """Set each sample's labels, which also reaches versions an earlier run published.
+
+    Args:
+        service: The service to apply them through.
+    """
+    for name, version, _ in SAMPLE_SCHEMAS:
+        labels = _SAMPLE_LABELS[name]
+        await service.update_schema_metadata(
+            MetadataUpdateCommand(name=name, version=version, labels=labels)
+        )
+        print(f"  label {name} {version} ({', '.join(labels)})")
+
+
 async def _apply_metadata(service: SchemaService, base_url: str) -> None:
     """Apply the deprecated/successor metadata to the relevant samples (idempotent).
 
@@ -237,7 +262,7 @@ async def _apply_metadata(service: SchemaService, base_url: str) -> None:
 
 
 async def seed(storage_url: str, base_url: str) -> None:
-    """Publish every sample schema into a store, then stamp lifecycle metadata.
+    """Publish every sample schema into a store, then set its labels and lifecycle metadata.
 
     Args:
         storage_url: The store to populate.
@@ -247,6 +272,7 @@ async def seed(storage_url: str, base_url: str) -> None:
     service = SchemaService(repo)
     try:
         created, skipped = await _publish_samples(service)
+        await _apply_labels(service)
         await _apply_metadata(service, base_url)
     finally:
         # The SQLAlchemy backend holds an engine; release its connections cleanly.

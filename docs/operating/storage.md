@@ -7,7 +7,7 @@ syntax). This page is about *which* to choose.
 **If you do not want to think about it, do not.** The default is SQLite in the working
 directory, it needs no external service, and it is a perfectly good answer for a catalog
 one team publishes to. You will know when it stops being enough, and moving is a matter
-of changing one variable and republishing.
+of changing one variable and republishing, each schema's versions oldest first.
 
 ## What the data is actually like
 

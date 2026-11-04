@@ -12,6 +12,8 @@ Read it roughly in order:
   and the one worth making before you have data. It is written by deployment shape
   ("one machine, one process", "more than one instance") rather than by backend, so
   you can find yourself in it.
+- **[Deploying](deploying.md)** is what any host needs, how to build the container,
+  how to check an instance works, and what an upgrade involves.
 - **[Writing a storage backend](writing-a-backend.md)** is for when none of the
   built-in ones fit. It is a real extension point, not a hook: a backend is five
   methods and needs nothing from the application.
