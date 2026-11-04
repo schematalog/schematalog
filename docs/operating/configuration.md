@@ -1,7 +1,8 @@
 # Configuration
 
 Schematalog is configured through environment variables (or a `.env` file), all
-prefixed with **`SCHEMATALOG_`**.
+prefixed with **`SCHEMATALOG_`**. A `.env` file must hold only these settings: any other
+line stops the application from starting.
 
 ```shell
 SCHEMATALOG_STORAGE_URL=file:///data/schemas
@@ -44,7 +45,8 @@ completely; there is no second place to look. For *which* backend to choose, see
 
 The async driver is filled in for you: `sqlite:` becomes `sqlite+aiosqlite:` and
 `postgresql:` becomes `postgresql+asyncpg:`, so a platform-provided `DATABASE_URL` works
-apart from any `sslmode` it carries (see below). Naming a driver explicitly leaves it alone.
+apart from the connection parameters it carries (see below). Those two drivers can also be
+named outright; no other is accepted.
 
 ### Options
 
@@ -59,9 +61,10 @@ The SQLAlchemy backends take two, as query parameters:
 SCHEMATALOG_STORAGE_URL="postgresql://user:pass@host/dbname?pool_recycle=900"
 ```
 
-Any parameter the backend does not claim is left on the URL for the driver. The
-PostgreSQL driver takes `?ssl=require` and refuses `sslmode` and `channel_binding`, so
-change those if your provider's URL includes them.
+Any parameter the backend does not claim is left on the URL for the driver, and the
+PostgreSQL driver takes only its own. [Deploying](deploying.md#choosing-where-the-data-lives)
+says how to edit a URL from a provider, which usually carries `sslmode` and often
+`channel_binding`.
 
 Schemes from installed backends work the same way: `s3` above comes from the separate
 `schematalog-s3` package, and installing it is the whole of the configuration.

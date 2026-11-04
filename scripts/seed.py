@@ -3,7 +3,7 @@
 Idempotent for one base URL - schemas that already exist are skipped and their labels
 and lifecycle metadata set again, so it is safe to re-run with the same one. A different
 one rewrites the internal successor, so it matters on a demo instance too, where leaving it
-out stores a successor under localhost.
+out stores a successor under localhost. The store must have the current tables.
 Targets whatever backend `.env` / `Settings` points at (SQLite by default, or the
 compose Postgres). Publishing goes through `SchemaService`, so the samples are
 metaschema-validated exactly like real input.
@@ -262,7 +262,7 @@ async def _apply_metadata(service: SchemaService, base_url: str) -> None:
 
 
 async def seed(storage_url: str, base_url: str) -> None:
-    """Publish every sample schema into a store, then stamp lifecycle metadata.
+    """Publish every sample schema into a store, then set its labels and lifecycle metadata.
 
     Args:
         storage_url: The store to populate.
