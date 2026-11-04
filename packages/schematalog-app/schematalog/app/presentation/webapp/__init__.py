@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 import uuid
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from markupsafe import Markup, escape
 from pydantic import BaseModel, ValidationError
 
@@ -18,6 +18,8 @@ from schematalog.app.application.exceptions import (
     InvalidSearchQueryError,
 )
 from schematalog.app.application.schema import (
+    MAX_IDENTIFIER_LENGTH,
+    MAX_LABELS_PER_SCHEMA,
     GetSchemaCommand,
     ListLatestCommand,
     ListPredecessorsCommand,
@@ -237,20 +239,31 @@ _STARTER_DOCUMENT = json.dumps(
 )
 
 
-def _render_publish_response(
+async def _render_publish_response(
     request: Request,
+    service: SchemaService,
     fields: dict[str, str],
     error: str | None = None,
     status_code: int = HTTPStatus.OK,
     based_on: str | None = None,
-    labels_in_use: list[str] | None = None,
-):
+) -> Response:
     """Render the publish form, echoing back what was submitted plus any error.
 
-    `based_on` is the version a "publish a new version" form was seeded from; it only
-    changes the heading, so the page can say what it is continuing from. `labels_in_use`
-    feeds the label field's suggestions - the nudge towards reusing an existing
-    spelling rather than coining `payments` beside `payment`.
+    The labels in use appear beside the label field, to steer a publisher towards an
+    existing spelling. Reading them scans the store, so it happens only here, when a page
+    is actually going to show them.
+
+    Args:
+        request: The current request.
+        service: The service to read the labels in use from.
+        fields: The form values to show.
+        error: A message for the person filling the form in, if the submission failed.
+        status_code: The response's status.
+        based_on: The version a "publish a new version" form was seeded from, for the
+            heading.
+
+    Returns:
+        The rendered page.
     """
     return templates.TemplateResponse(
         request,
@@ -259,7 +272,7 @@ def _render_publish_response(
             "fields": fields,
             "error": error,
             "based_on": based_on,
-            "labels_in_use": labels_in_use or [],
+            "labels_in_use": [used async for used in service.list_labels()],
         },
         status_code=status_code,
     )
@@ -310,10 +323,10 @@ async def schemas_publish(
     version" path off the detail page - with the version suggestion bumped, since
     republishing the same one is always a conflict. Otherwise it opens blank.
     """
-    labels_in_use = [used async for used in service.list_labels()]
     if not name:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             {
                 "name": "",
                 "version": "1.0",
@@ -321,11 +334,11 @@ async def schemas_publish(
                 "labels": "",
                 "json_schema": _STARTER_DOCUMENT,
             },
-            labels_in_use=labels_in_use,
         )
     view = await service.get_schema(GetSchemaCommand(name=name, version=version or None))
-    return _render_publish_response(
+    return await _render_publish_response(
         request,
+        service,
         {
             "name": view.name,
             "version": _suggest_next_version(view.version),
@@ -339,7 +352,6 @@ async def schemas_publish(
             "json_schema": json.dumps(view.document, indent=2),
         },
         based_on=view.version,
-        labels_in_use=labels_in_use,
     )
 
 
@@ -398,41 +410,41 @@ async def schemas_publish_submit(
         "json_schema": form.json_schema,
     }
     command, error = _build_publish_command(fields)
-    labels_in_use = [used async for used in service.list_labels()]
     if command is None:
-        return _render_publish_response(
-            request, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY, labels_in_use=labels_in_use
+        return await _render_publish_response(
+            request, service, fields, error, HTTPStatus.UNPROCESSABLE_ENTITY
         )
     try:
         view = await service.publish_schema(command)
     except InvalidLabelError:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
-            "Labels are separated by spaces, and each may contain only letters, "
-            "digits, '-', '_' and '.'.",
+            "Labels are separated by spaces. Each may contain only letters, digits, '-', '_' "
+            f"and '.', up to {MAX_IDENTIFIER_LENGTH} characters, and a version may carry at "
+            f"most {MAX_LABELS_PER_SCHEMA} labels.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
-            labels_in_use=labels_in_use,
         )
     except InvalidSchemaError:
         # Covers both of the service's reasons - a document matching no metaschema, and a
         # field breaking a domain constraint. The exact cap lives in the domain, which
         # presentation cannot import, so the wording spans the two rather than quoting it.
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
             "The document does not conform to any supported JSON Schema metaschema, "
             "or a field is longer than allowed.",
             HTTPStatus.UNPROCESSABLE_ENTITY,
-            labels_in_use=labels_in_use,
         )
     except DuplicateSchemaError:
-        return _render_publish_response(
+        return await _render_publish_response(
             request,
+            service,
             fields,
             f"Version '{fields['version']}' of '{fields['name']}' already exists.",
             HTTPStatus.CONFLICT,
-            labels_in_use=labels_in_use,
         )
     return RedirectResponse(
         str(

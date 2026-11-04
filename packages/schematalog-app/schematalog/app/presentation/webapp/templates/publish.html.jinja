@@ -76,19 +76,18 @@
                 name="labels"
                 value="{{ fields.labels }}"
                 placeholder="billing payments"
-                list="labels-in-use"
                 autocomplete="off"
                 class="input w-full"
             >
-            {% if labels_in_use %}
-            <datalist id="labels-in-use">
-                {% for label in labels_in_use %}<option value="{{ label }}">{% endfor %}
-            </datalist>
-            {% endif %}
             <p class="text-xs opacity-60">
                 Grouping tags, separated by spaces: lowercase letters, digits, '-', '_' and '.'.
                 Reusing an existing spelling keeps schemas findable under one label.
             </p>
+            {# Listed rather than offered as suggestions: a browser's suggestion list treats
+               the whole field as one value, so picking one would erase the other labels. #}
+            {% if labels_in_use %}
+            <p class="text-xs opacity-60">In use: {{ labels_in_use|join(", ") }}</p>
+            {% endif %}
         </fieldset>
 
         <fieldset class="fieldset">
