@@ -406,6 +406,31 @@ def test_version_metadata_advertises_the_same_links_as_the_document(client, exam
     assert record.headers["Link"] == document.headers["Link"]
 
 
+def test_a_successor_url_outside_this_registry_is_kept_as_given(client, example_schema):
+    """It is not validated either: the target is not this registry's to check."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    external = "https://schemas.example.org/customer/2"
+
+    response = client.patch(f"/api/schemas/{name}/versions/1", json={"successor": external})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == external
+
+
+def test_a_null_successor_clears_the_stored_one(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+    client.patch(f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2"})
+
+    response = client.patch(f"/api/schemas/{name}/versions/1", json={"successor": None})
+
+    assert response.status_code == HTTPStatus.OK
+    assert "successor" not in response.json()
+
+
 def test_a_metadata_url_as_successor_is_stored_as_the_canonical_url(client, example_schema):
     """The detail page shows both URLs, so copying the wrong one must still work."""
     name = example_schema["name"]
