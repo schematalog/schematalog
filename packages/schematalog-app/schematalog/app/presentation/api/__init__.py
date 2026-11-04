@@ -263,7 +263,7 @@ async def update_schema_metadata(
     is tri-state (omit = leave, null = clear, value = set): only when it is present in
     the request body do we resolve it and carry it on the command. Labels are simpler:
     omit leaves them, any array - including empty - replaces the set wholesale. All
-    error outcomes (404/422/401/403) are mapped centrally by the app-level handlers.
+    error outcomes (404/422) are mapped centrally by the app-level handlers.
     """
     command_args: dict[str, Any] = {
         "name": schema_name,
