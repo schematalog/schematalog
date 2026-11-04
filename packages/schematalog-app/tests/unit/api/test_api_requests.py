@@ -392,13 +392,17 @@ def test_version_metadata_advertises_the_same_links_as_the_document(client, exam
     name = example_schema["name"]
     client.post("/api/schemas", json={**example_schema, "version": "1"})
     client.post("/api/schemas", json={**example_schema, "version": "2"})
+    client.post("/api/schemas", json={**example_schema, "version": "3"})
     base = f"http://testserver/api/schemas/{name}/versions"
     client.patch(f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2"})
+    client.patch(f"/api/schemas/{name}/versions/2", json={"successor": f"{base}/3"})
 
     document = client.get(f"/api/schemas/{name}/versions/2")
     record = client.get(f"/api/schemas/{name}/versions/2/metadata")
 
-    assert record.headers["Link"] == f'<{base}/1>; rel="predecessor-version"'
+    assert record.headers["Link"] == (
+        f'<{base}/3>; rel="successor-version", <{base}/1>; rel="predecessor-version"'
+    )
     assert record.headers["Link"] == document.headers["Link"]
 
 
