@@ -34,7 +34,7 @@ from schematalog.domain.schema import (
 
 __all__ = ["S3SchemaRepository", "build_repository"]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 """This backend's own version, independent of the registry's and of the contract's."""
 
 
