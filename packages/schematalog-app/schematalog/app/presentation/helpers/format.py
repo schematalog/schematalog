@@ -42,6 +42,17 @@ def to_avro(schema: Any, namespace: str = "") -> str:
 
 
 def to_pydantic(schema: Any) -> str:
+    """Generate Pydantic v2 model source from a JSON Schema, for Python 3.14.
+
+    A schema that refers to itself or forms a cycle relies on 3.14's deferred annotations,
+    so that output raises `NameError` on older versions.
+
+    Args:
+        schema: The schema, as a mapping or a model of one.
+
+    Returns:
+        The source code of the models.
+    """
     if isinstance(schema, BaseModel):
         schema = schema.model_dump(mode="json", by_alias=True)
     if isinstance(schema, dict) and "$id" in schema:
@@ -51,7 +62,7 @@ def to_pydantic(schema: Any) -> str:
         schema = schema.copy()
         del schema["$id"]
     data_model_types = get_data_model_types(
-        DataModelType.PydanticV2BaseModel, target_python_version=PythonVersion.PY_311
+        DataModelType.PydanticV2BaseModel, target_python_version=PythonVersion.PY_314
     )
     parser = JsonSchemaParser(
         to_json(schema),
@@ -60,10 +71,12 @@ def to_pydantic(schema: Any) -> str:
         data_model_field_type=data_model_types.field_model,
         data_type_manager_type=data_model_types.data_type_manager,
         dump_resolve_reference_action=data_model_types.dump_resolve_reference_action,
-        # Pin the formatters: datamodel-code-generator warns when they're left to default.
-        formatters=[Formatter.BLACK, Formatter.ISORT],
+        target_python_version=PythonVersion.PY_314,
+        use_union_operator=True,
+        use_standard_collections=True,
+        formatters=[Formatter.BUILTIN],
     )
-    return str(parser.parse())
+    return str(parser.parse(disable_future_imports=True))
 
 
 def highlight(code: str, language: str, anchor: str) -> str:

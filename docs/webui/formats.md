@@ -38,6 +38,10 @@ dropped before generation: it is an absolute URL pointing back at this registry,
 leaving it in would make the code generator try to fetch it as a remote base. The
 generated code does not need it.
 
+The code is written for Python 3.14. A schema that refers to itself, or schemas that refer
+to each other, generate models that need 3.14: on older versions they raise `NameError`
+unless you add `from __future__ import annotations` at the top.
+
 !!! tip "Full class generation is the SDK's job"
     The Python tab is a convenience preview. Turning stored schemas into rich,
     self-validating Python classes at scale is the planned, separate client SDK -

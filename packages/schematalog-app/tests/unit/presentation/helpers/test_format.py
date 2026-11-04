@@ -45,10 +45,33 @@ def test_schema_is_formatted_as_Pydantic(example_schema_dict):
 class Address(BaseModel):
     street: str
     city: str
-    state: Optional[str] = None
-    postcode: Optional[str] = None
+    state: str | None = None
+    postcode: str | None = None
 """
     assert address_model_code in formatted
+
+
+def test_pydantic_output_is_written_for_current_python(example_schema_dict):
+    formatted = fmt.to_pydantic(example_schema_dict)
+
+    assert "from __future__" not in formatted
+    assert "Optional[" not in formatted
+    assert "List[" not in formatted
+
+
+def test_pydantic_output_for_a_schema_that_refers_to_itself_can_be_used():
+    """Nothing defers its annotations in the output, so this relies on Python 3.14's doing so."""
+    document = {
+        "title": "Node",
+        "type": "object",
+        "properties": {"child": {"$ref": "#"}, "name": {"type": "string"}},
+    }
+    namespace = {}
+
+    exec(fmt.to_pydantic(document), namespace)  # noqa: S102
+
+    node = namespace["Node"].model_validate({"name": "a", "child": {"name": "b"}})
+    assert node.child.name == "b"
 
 
 def test_pydantic_drops_canonical_id_and_resolves_refs_locally():
