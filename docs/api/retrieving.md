@@ -1,16 +1,17 @@
 # Retrieving schemas
 
-There are three read shapes, plus a name-only convenience redirect.
+There are four read shapes, plus a name-only convenience redirect and a list of labels.
 
 | Request | Returns |
 | --- | --- |
 | `GET /api/schemas` | Latest version of every readable schema, name-ascending. |
 | `GET /api/schemas/{name}/versions` | All versions of one name, newest first. |
 | `GET /api/schemas/{name}/versions/{version}` | The JSON Schema document for one version (its canonical URL). |
+| `GET /api/schemas/{name}/versions/{version}/metadata` | [Everything the registry knows](#a-versions-complete-record) about one version. |
 | `GET /api/schemas/{name}` | `302` redirect to the latest version's canonical URL. |
 | `GET /api/labels` | Every label [in use](#filtering-by-label), ascending. |
 
-The list endpoints return the wire DTO (`name`, `version`, `canonical_url`,
+The list and `/metadata` endpoints return the wire DTO (`name`, `version`, `canonical_url`,
 `description`, `schema`, `publication_id`, `published_on`, `deprecated`, `successor`,
 `labels`).
 The single-version endpoint returns the **JSON Schema document itself** — so the
@@ -156,6 +157,21 @@ advertises it as `$id`, you can reference one stored schema from another by URL:
 
 A standard JSON Schema validator that follows `$ref`s by retrieval will fetch the
 referenced version directly from the registry.
+
+## A version's complete record
+
+A version's canonical URL has to return the document alone, because that is what a `$ref`
+resolver expects. Everything else the registry knows about the version is one level below
+it:
+
+```shell
+curl "https://schematalog.com/api/schemas/address/versions/1.0.0/metadata"
+```
+
+This returns the same fields as a listing item, including the stamped document, so there
+is one shape to learn. Its `canonical_url` points back at the document, and it carries the
+same [lifecycle links](#lifecycle-links). To change a version's metadata, send the `PATCH`
+to the [canonical URL](lifecycle.md), not to this one.
 
 ## Lifecycle links
 

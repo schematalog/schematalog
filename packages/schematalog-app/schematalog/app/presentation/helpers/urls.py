@@ -8,10 +8,12 @@ too. Operates on the application's `SchemaView` vocabulary, never the domain ent
 
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import Request
+from pydantic import ValidationError
 
+from schematalog.app.application.exceptions import InvalidSuccessorError
 from schematalog.app.application.schema import (
     SchemaIdentity,
     SchemaName,
@@ -19,11 +21,11 @@ from schematalog.app.application.schema import (
     SuccessorReference,
 )
 
-# Path shape of `get_json_schema` (with the name/version pattern), for recognising a
-# successor URL that points back at this registry.
+# Path shape of a version's document and metadata routes (with the name/version pattern),
+# for recognising a successor URL that points back at this registry.
 _INTERNAL_PATH = re.compile(
     r"^/api/schemas/(?P<name>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)"
-    r"/versions/(?P<version>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)$"
+    r"/versions/(?P<version>[0-9a-zA-Z][0-9a-zA-Z\-_.]*)(?:/metadata)?$"
 )
 
 
@@ -37,24 +39,48 @@ def canonical_url_for(name: SchemaName, version: SchemaVersion, request: Request
     return str(request.url_for("get_json_schema", schema_name=name, version=version))
 
 
+def metadata_url_for(name: SchemaName, version: SchemaVersion, request: Request) -> str:
+    """Build the URL of a schema version's complete record.
+
+    Args:
+        name: The schema's name.
+        version: The version to address.
+        request: The current request, which supplies the route.
+
+    Returns:
+        The absolute URL of the version's metadata route.
+    """
+    return str(request.url_for("get_schema_metadata", schema_name=name, version=version))
+
+
 def resolve_successor(
     url: str | None, request: Request
 ) -> tuple[SuccessorReference | None, SchemaIdentity | None]:
     """Resolve a submitted successor URL into a stored reference + optional internal target.
 
-    A URL pointing at this registry's own `get_json_schema` route is *internal*: it is
-    canonicalised (re-emitted via `canonical_url_for`, so predecessor matching is reliable)
-    and its `(name, version)` is returned for the service to existence-check. Any other
-    absolute URL is *external*: kept as-is, with no target. `None` (clearing the successor)
-    yields `(None, None)`. Route resolution is a presentation concern, hence it lives here.
+    A URL pointing at a version's document or metadata route in this registry is *internal*,
+    with or without a trailing slash or percent-encoding, since those reach the same route:
+    it is canonicalised (re-emitted via `canonical_url_for`, so predecessor matching is
+    reliable) and its `(name, version)` is returned for the service to existence-check. Any
+    other absolute URL is *external*: kept as-is, with no target. `None` (clearing the
+    successor) yields `(None, None)`. Route resolution is a presentation concern, hence it
+    lives here.
+
+    Raises:
+        InvalidSuccessorError: If an internal URL names something no version could be called.
     """
     if url is None:
         return None, None
     parsed = urlparse(url)
     base = request.base_url
-    match = _INTERNAL_PATH.match(parsed.path)
+    match = _INTERNAL_PATH.match(unquote(parsed.path).removesuffix("/"))
     if match and (parsed.scheme, parsed.netloc) == (base.scheme, base.netloc):
-        identity = SchemaIdentity(name=match["name"], version=match["version"])
+        try:
+            identity = SchemaIdentity(name=match["name"], version=match["version"])
+        except ValidationError as exc:
+            raise InvalidSuccessorError(  # noqa: TRY003
+                "The successor URL does not name a possible schema version."
+            ) from exc
         canonical = canonical_url_for(identity.name, identity.version, request)
         return SuccessorReference(url=canonical), identity
     return SuccessorReference(url=url), None

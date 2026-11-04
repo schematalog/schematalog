@@ -343,6 +343,207 @@ def test_publishing_rejects_an_identifier_longer_than_the_column(client, example
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
+# ---- the complete record of one version ----------------------------------------------
+
+
+def test_version_metadata_returns_the_complete_record(client, example_schema):
+    """The read the bare document URL cannot give: everything else the registry knows."""
+    client.post(
+        "/api/schemas",
+        json={**example_schema, "description": "An order.", "labels": ["billing"]},
+    )
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    response = client.get(f"{url}/metadata")
+
+    assert response.status_code == HTTPStatus.OK
+    record = response.json()
+    assert record["name"] == example_schema["name"]
+    assert record["version"] == example_schema["version"]
+    assert record["description"] == "An order."
+    assert record["labels"] == ["billing"]
+    assert record["deprecated"] is False
+    assert "publication_id" in record
+    assert "published_on" in record
+    # The record points back at the document endpoint, and the document rides along,
+    # stamped with the canonical $id like everywhere else.
+    assert record["canonical_url"].endswith(url)
+    assert record["schema"]["$id"] == record["canonical_url"]
+
+
+def test_version_metadata_reflects_a_lifecycle_update(client, example_schema):
+    """Mutable fields are the reason to read the record, so it must not serve stale ones."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    successor = f"http://testserver/api/schemas/{name}/versions/2"
+    client.patch(
+        f"/api/schemas/{name}/versions/1", json={"deprecated": True, "successor": successor}
+    )
+
+    record = client.get(f"/api/schemas/{name}/versions/1/metadata").json()
+
+    assert record["deprecated"] is True
+    assert record["successor"] == successor
+
+
+def test_version_metadata_advertises_the_same_links_as_the_document(client, example_schema):
+    """A client using only the record can still learn what a version supersedes."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    client.post("/api/schemas", json={**example_schema, "version": "3"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+    client.patch(f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2"})
+    client.patch(f"/api/schemas/{name}/versions/2", json={"successor": f"{base}/3"})
+
+    document = client.get(f"/api/schemas/{name}/versions/2")
+    record = client.get(f"/api/schemas/{name}/versions/2/metadata")
+
+    assert record.headers["Link"] == (
+        f'<{base}/3>; rel="successor-version", <{base}/1>; rel="predecessor-version"'
+    )
+    assert record.headers["Link"] == document.headers["Link"]
+
+
+def test_a_successor_url_outside_this_registry_is_kept_as_given(client, example_schema):
+    """It is not validated either: the target is not this registry's to check."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    external = "https://schemas.example.org/customer/2"
+
+    response = client.patch(f"/api/schemas/{name}/versions/1", json={"successor": external})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == external
+
+
+def test_a_null_successor_clears_the_stored_one(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+    client.patch(f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2"})
+
+    response = client.patch(f"/api/schemas/{name}/versions/1", json={"successor": None})
+
+    assert response.status_code == HTTPStatus.OK
+    assert "successor" not in response.json()
+
+
+def test_a_metadata_url_as_successor_is_stored_as_the_canonical_url(client, example_schema):
+    """The detail page shows both URLs, so copying the wrong one must still work."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/2/metadata"}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == f"{base}/2"
+
+
+@pytest.mark.parametrize("path", ["2/", "2/metadata/", "%32", "%32/metadata"])
+def test_another_spelling_of_a_version_url_is_stored_as_the_canonical_url(
+    client, example_schema, path
+):
+    """These reach the same route, so storing one as given would pass as external."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    client.post("/api/schemas", json={**example_schema, "version": "2"})
+    base = f"http://testserver/api/schemas/{name}/versions"
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1", json={"successor": f"{base}/{path}"}
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["successor"] == f"{base}/2"
+
+
+@pytest.mark.parametrize(
+    "path", ["1/", "1/metadata/", "%31/metadata", "99/", "99/metadata/", "%39%39"]
+)
+def test_another_spelling_of_a_version_url_is_still_checked_as_a_successor(
+    client, example_schema, path
+):
+    """A version cannot supersede itself or a missing version however the URL is written."""
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/{path}"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize("suffix", ["", "/metadata"])
+def test_a_successor_url_with_an_overlong_name_is_refused(client, example_schema, suffix):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+    overlong = "x" * 300
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{overlong}/versions/1{suffix}"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_a_metadata_url_to_an_unknown_version_is_refused_as_successor(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/99/metadata"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_a_version_cannot_supersede_itself_through_its_metadata_url(client, example_schema):
+    name = example_schema["name"]
+    client.post("/api/schemas", json={**example_schema, "version": "1"})
+
+    response = client.patch(
+        f"/api/schemas/{name}/versions/1",
+        json={"successor": f"http://testserver/api/schemas/{name}/versions/1/metadata"},
+    )
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_version_document_stays_the_bare_document(client, example_schema):
+    """The canonical $id answers the document alone - what a `$ref` resolver expects."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+    url = f"/api/schemas/{example_schema['name']}/versions/{example_schema['version']}"
+
+    document = client.get(url).json()
+
+    assert document["$id"].endswith(url)
+    # Registry metadata lives at the metadata URL, not in the resolvable document.
+    assert "labels" not in document
+    assert "canonical_url" not in document
+
+
+def test_version_metadata_is_404_for_an_unknown_version(client, example_schema):
+    client.post("/api/schemas", json=example_schema)
+    response = client.get(f"/api/schemas/{example_schema['name']}/versions/99/metadata")
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_version_metadata_is_404_for_an_unknown_name(client):
+    response = client.get("/api/schemas/nobody/versions/1/metadata")
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 # ---- labels ------------------------------------------------------------------------
 
 

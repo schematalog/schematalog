@@ -33,6 +33,7 @@ All paths are relative to your instance's address (for example
 | `GET` | `/api/schemas/{name}` | `302` to the latest version's canonical URL. | none |
 | `GET` | `/api/schemas/{name}/versions` | All versions of a name, newest first. | none |
 | `GET` | `/api/schemas/{name}/versions/{version}` | The JSON Schema document (canonical URL). | none |
+| `GET` | `/api/schemas/{name}/versions/{version}/metadata` | The version's [complete record](retrieving.md#a-versions-complete-record). | none |
 | `PATCH` | `/api/schemas/{name}/versions/{version}` | Update mutable metadata ([deprecation/successor](lifecycle.md), [labels](publishing.md#labels)). | none |
 
 Non-API endpoints: `GET /version` (build info), `GET /openapi.yaml`, and the HTML

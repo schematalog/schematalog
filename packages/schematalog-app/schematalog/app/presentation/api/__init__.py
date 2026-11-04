@@ -39,6 +39,32 @@ from schematalog.app.wiring.factories import get_service
 router = APIRouter(prefix="/api", tags=["Schemas"])
 
 
+async def _set_lifecycle_links(
+    response: Response, view: SchemaView, request: Request, service: SchemaService
+) -> None:
+    """Advertise a version's successor and predecessors as RFC 5829 `Link` headers.
+
+    Predecessors are derived: whichever versions declare this one as their successor.
+
+    Args:
+        response: The response to set the header on; left without one if there are no links.
+        view: The version the response describes.
+        request: The current request, which supplies the routes.
+        service: The service to read predecessors from.
+    """
+    links: list[str] = []
+    if view.successor is not None:
+        links.append(f'<{view.successor}>; rel="successor-version"')
+    url = canonical_url_for(view.name, view.version, request)
+    async for pred in service.list_schema_predecessors(
+        ListPredecessorsCommand(successor_url=url)
+    ):
+        pred_url = canonical_url_for(pred.name, pred.version, request)
+        links.append(f'<{pred_url}>; rel="predecessor-version"')
+    if links:
+        response.headers["Link"] = ", ".join(links)
+
+
 def _to_response(view: SchemaView, request: Request) -> SchemaResponse:
     """Stamp the canonical `$id` into the document and project the view onto the wire DTO."""
     url = canonical_url_for(view.name, view.version, request)
@@ -185,26 +211,37 @@ async def get_json_schema(
 ) -> dict[str, Any]:
     """The canonical URL for a schema version's JSON Schema document."""
     view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version))
-    url = canonical_url_for(view.name, view.version, request)
-    # RFC 5829 link relations: the superseding version, and the versions this one
-    # supersedes (predecessors are derived - whoever declares this URL as their successor).
-    links: list[str] = []
-    if view.successor is not None:
-        links.append(f'<{view.successor}>; rel="successor-version"')
-    async for pred in service.list_schema_predecessors(
-        ListPredecessorsCommand(successor_url=url)
-    ):
-        pred_url = canonical_url_for(pred.name, pred.version, request)
-        links.append(f'<{pred_url}>; rel="predecessor-version"')
-    if links:
-        response.headers["Link"] = ", ".join(links)
+    await _set_lifecycle_links(response, view, request, service)
     return stamp_canonical_id(
         view.document,
-        canonical_url=url,
+        canonical_url=canonical_url_for(view.name, view.version, request),
         title=view.name,
         description=view.description,
         deprecated=view.deprecated,
     )
+
+
+@router.get(
+    "/schemas/{schema_name}/versions/{version}/metadata",
+    name="get_schema_metadata",
+    response_model=SchemaResponse,
+    response_model_exclude_none=True,
+)
+async def get_schema_metadata(
+    schema_name: str,
+    version: str,
+    request: Request,
+    response: Response,
+    service: SchemaService = Depends(get_service),
+) -> SchemaResponse:
+    """A version's complete record: everything the registry knows, plus the document.
+
+    Same shape as the listings. The version's own URL returns the document alone, which
+    is what a `$ref` resolver expects.
+    """
+    view = await service.get_schema(GetSchemaCommand(name=schema_name, version=version))
+    await _set_lifecycle_links(response, view, request, service)
+    return _to_response(view, request)
 
 
 @router.patch(

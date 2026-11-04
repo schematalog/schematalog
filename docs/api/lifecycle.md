@@ -30,8 +30,9 @@ curl -X PATCH https://schematalog.com/api/schemas/address/versions/1.0.0 \
   -d '{"successor": "https://schematalog.com/api/schemas/address/versions/2.0.0"}'
 ```
 
-A successor URL that points back at this registry is **internal**: it is validated
-(the target version must exist) and canonicalised. Any other absolute URL is kept
+A successor URL that points back at this registry, at a version's document or its
+metadata, is **internal**: it is validated (the target version must exist) and
+canonicalised to the document's URL. Any other absolute URL is kept
 as an **external** reference as-is. A self-referential or missing internal successor
 is rejected with `422 Unprocessable Entity`.
 
@@ -45,8 +46,9 @@ The `successor` field is **tri-state** on `PATCH`:
 
 ## How relationships are served
 
-`GET /api/schemas/{name}/versions/{version}` advertises lifecycle relationships as
-[RFC 5829](https://www.rfc-editor.org/rfc/rfc5829) `Link` headers:
+`GET /api/schemas/{name}/versions/{version}` and its
+[`/metadata` record](retrieving.md#a-versions-complete-record) both advertise lifecycle
+relationships as [RFC 5829](https://www.rfc-editor.org/rfc/rfc5829) `Link` headers:
 
 ```
 Link: <https://schematalog.com/api/schemas/address/versions/2.0.0>; rel="successor-version",
