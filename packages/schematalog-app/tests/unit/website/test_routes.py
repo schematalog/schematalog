@@ -1,5 +1,7 @@
 from http import HTTPStatus
 
+import pytest
+
 from schematalog.app.presentation import app
 from schematalog.app.presentation.helpers import buildinfo
 from schematalog.app.wiring.config import settings
@@ -278,6 +280,36 @@ def test_a_label_badge_keeps_the_search_and_the_other_labels(client, example_sch
     page = client.get("/schemas/", params={"q": "pay", "label": "billing"}).text
 
     assert "/schemas/?q=pay&amp;label=billing&amp;label=customer" in page
+
+
+def test_a_label_badge_encodes_a_search_of_several_words(client, example_schema):
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params={"q": "pay now"}).text
+
+    assert "/schemas/?q=pay+now&amp;label=billing" in page
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"q": "ordér"}, {"label": "bad label"}, {"q": "ordér", "label": "billing"}],
+)
+def test_a_label_badge_leaves_out_a_refused_filter(client, example_schema, params):
+    """Following a badge has to lead somewhere other than the same refusal."""
+    client.post("/api/schemas", json={**example_schema, "labels": ["billing"]})
+
+    page = client.get("/schemas/", params=params).text
+
+    assert 'href="http://testserver/schemas/?label=billing">billing</a>' in page
+
+
+def test_the_search_form_leaves_out_a_refused_label(client, example_schema):
+    """A corrected search must not be refused again over a label it cannot see."""
+    client.post("/api/schemas", json=example_schema)
+
+    page = client.get("/schemas/", params={"label": "bad label"}).text
+
+    assert 'name="label"' not in page
 
 
 def test_an_active_label_badge_removes_that_label(client, example_schema):

@@ -163,7 +163,7 @@ def test_schema_labels_read_a_string_field_value_as_one_label():
     assert list(labels) == ["payments"]
 
 
-@pytest.mark.parametrize("raw", [[1], None, 1])
+@pytest.mark.parametrize("raw", [[1], None, 1, {"billing": 1}])
 def test_schema_labels_refuse_input_that_is_not_strings(raw):
     """A malformed stored record fails validation rather than crashing it."""
     with pytest.raises(ValidationError):

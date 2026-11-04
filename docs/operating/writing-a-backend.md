@@ -105,8 +105,8 @@ it in a form that preserves byte order, because that is what makes it sortable.
 **`published_on` is derived, never stored.** It is computed from the identifier's high
 bits, so there is no second value to drift.
 
-**Immutability is per field, not per row.** `set_metadata` touches `deprecated` and
-`successor` and nothing else; identity, document and publication identifier are fixed once
+**Immutability is per field, not per row.** `set_metadata` touches `deprecated`,
+`successor` and `labels` and nothing else; identity, document and publication identifier are fixed once
 written. The domain is the arbiter here, so you do not need to enforce it with database
 grants or a second table - but you must not break it.
 
