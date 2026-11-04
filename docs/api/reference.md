@@ -51,6 +51,6 @@ The status codes:
 
 | Status | When |
 | --- | --- |
-| `404 Not Found` | No such schema or version. |
+| `404 Not Found` | No such schema or version, including a name or version in the URL that no schema could have. |
 | `409 Conflict` | Duplicate `(name, version)` on publish. |
 | `422 Unprocessable Entity` | The document matches no supported metaschema, or an invalid successor (self-referential / missing internal target). |

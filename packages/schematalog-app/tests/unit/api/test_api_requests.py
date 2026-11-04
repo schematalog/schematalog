@@ -533,6 +533,39 @@ def test_version_document_stays_the_bare_document(client, example_schema):
     assert "canonical_url" not in document
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/schemas/not%20a%20name!",
+        "/api/schemas/not%20a%20name!/versions",
+        "/api/schemas/not%20a%20name!/versions/1",
+        "/api/schemas/not%20a%20name!/versions/1/metadata",
+        "/api/schemas/person-schema/versions/not%20a%20version!",
+        "/api/schemas/person-schema/versions/not%20a%20version!/metadata",
+        f"/api/schemas/{'x' * 300}",
+        f"/api/schemas/person-schema/versions/{'x' * 300}",
+    ],
+)
+def test_a_name_or_version_no_schema_could_have_is_404(client, example_schema, path):
+    """It is a schema that is not here, however the URL came to name it."""
+    client.post("/api/schemas", json=example_schema)
+
+    response = client.get(path)
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_updating_a_version_no_schema_could_have_is_404(client, example_schema):
+    client.post("/api/schemas", json=example_schema)
+
+    response = client.patch(
+        f"/api/schemas/{example_schema['name']}/versions/not%20a%20version!",
+        json={"deprecated": True},
+    )
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
 def test_version_metadata_is_404_for_an_unknown_version(client, example_schema):
     client.post("/api/schemas", json=example_schema)
     response = client.get(f"/api/schemas/{example_schema['name']}/versions/99/metadata")

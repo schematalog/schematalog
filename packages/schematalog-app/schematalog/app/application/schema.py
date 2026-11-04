@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 import uuid
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from schematalog.app.application.exceptions import (
     DuplicateSchemaError,
@@ -45,6 +45,8 @@ from schematalog.domain.schema import to_lowercase_ascii as to_lowercase_ascii
 
 log = get_logger(__name__)
 
+_SCHEMA_NAME_ADAPTER: TypeAdapter[str] = TypeAdapter(SchemaName)
+
 
 class PublishCommand(BaseModel):
     """Input for `SchemaService.publish`.
@@ -66,15 +68,17 @@ class PublishCommand(BaseModel):
 class GetSchemaCommand(BaseModel):
     """Input for `SchemaService.get`."""
 
-    name: SchemaName
-    version: SchemaVersion | None = None
-    """Omit (or `None`) to retrieve the latest version."""
+    name: str
+    """Raw text from the caller; the service answers one no schema could have as not found."""
+    version: str | None = None
+    """Omit (or `None`) to retrieve the latest version. Raw text, like `name`."""
 
 
 class ListVersionsCommand(BaseModel):
     """Input for `SchemaService.list_versions`."""
 
-    name: SchemaName
+    name: str
+    """Raw text from the caller; the service answers one no schema could have as not found."""
 
 
 class ListLatestCommand(BaseModel):
@@ -111,8 +115,10 @@ class MetadataUpdateCommand(BaseModel):
     never carried here.
     """
 
-    name: SchemaName
-    version: SchemaVersion
+    name: str
+    """Raw text from the caller; the service answers one no schema could have as not found."""
+    version: str
+    """Raw text, like `name`."""
     deprecated: bool | None = None
     successor: SuccessorReference | None = None
     """The new successor reference (or `None` to clear it). Tri-state: whether to touch
@@ -160,6 +166,43 @@ class SchemaView(FrozenModel):
             successor=schema.successor,
             labels=list(schema.labels),
         )
+
+
+def _to_schema_name(name: str) -> SchemaName:
+    """Validate a name from the caller, which may be one no schema could have.
+
+    Args:
+        name: The raw name.
+
+    Returns:
+        The validated name.
+
+    Raises:
+        SchemaNotFoundError: If no schema could have that name.
+    """
+    try:
+        return _SCHEMA_NAME_ADAPTER.validate_python(name)
+    except ValidationError as exc:
+        raise SchemaNotFoundError(str(UnknownSchemaError(name))) from exc
+
+
+def _to_schema_identity(name: str, version: str) -> SchemaIdentity:
+    """Validate a name and version from the caller, which may be ones no schema could have.
+
+    Args:
+        name: The raw name.
+        version: The raw version.
+
+    Returns:
+        The validated identity.
+
+    Raises:
+        SchemaNotFoundError: If no schema version could be identified that way.
+    """
+    try:
+        return SchemaIdentity(name=name, version=version)
+    except ValidationError as exc:
+        raise SchemaNotFoundError(str(UnknownSchemaError(name, version))) from exc
 
 
 class SchemaService:
@@ -230,10 +273,10 @@ class SchemaService:
         try:
             if command.version:
                 schema = await self._repo.get(
-                    SchemaIdentity(name=command.name, version=command.version)
+                    _to_schema_identity(command.name, command.version)
                 )
             else:
-                schema = await self._repo.get_latest(command.name)
+                schema = await self._repo.get_latest(_to_schema_name(command.name))
         except UnknownSchemaError as exc:
             raise SchemaNotFoundError(str(exc)) from exc
         return SchemaView.from_schema(schema)
@@ -252,7 +295,7 @@ class SchemaService:
             SchemaNotFoundError: If the version does not exist.
             InvalidSuccessorError: If an internal successor is self-referential or missing.
         """
-        identity = SchemaIdentity(name=command.name, version=command.version)
+        identity = _to_schema_identity(command.name, command.version)
         try:
             schema = await self._repo.get(identity)
         except UnknownSchemaError as exc:
@@ -349,7 +392,7 @@ class SchemaService:
             SchemaNotFoundError: If the name does not exist.
         """
         try:
-            async for schema in self._repo.list_versions(command.name):
+            async for schema in self._repo.list_versions(_to_schema_name(command.name)):
                 yield SchemaView.from_schema(schema)
         except UnknownSchemaError as exc:
             raise SchemaNotFoundError(str(exc)) from exc
